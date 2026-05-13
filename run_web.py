@@ -25,17 +25,35 @@ PORT = 8787
 URL = f"http://{HOST}:{PORT}"
 
 
+REQUIRED = [
+    "fastapi", "uvicorn", "polars", "pydantic",
+    "charset_normalizer", "openpyxl", "multipart",
+]
+INSTALL_NAMES = {          # import name → pip package name when different
+    "charset_normalizer": "charset-normalizer",
+    "multipart": "python-multipart",
+}
+
 def _check_deps() -> None:
     missing = []
-    for pkg in ("fastapi", "uvicorn", "polars", "pydantic"):
+    for pkg in REQUIRED:
         try:
             __import__(pkg)
         except ImportError:
             missing.append(pkg)
-    if missing:
-        print(f"Missing dependencies: {', '.join(missing)}")
-        print(f"Install with: pip install {' '.join(missing)}")
+    if not missing:
+        return
+    pip_pkgs = [INSTALL_NAMES.get(p, p) for p in missing]
+    print(f"Installing missing packages: {' '.join(pip_pkgs)}")
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install", *pip_pkgs],
+        check=False,
+    )
+    if result.returncode != 0:
+        print("\nAuto-install failed. Please run manually:")
+        print(f"  pip install {' '.join(pip_pkgs)}")
         sys.exit(1)
+    print("Done.\n")
 
 
 def _open_browser_delayed(url: str, delay: float = 1.5) -> None:
@@ -56,7 +74,7 @@ def main() -> None:
         print("The API is available but there is no UI yet.")
         print()
 
-    print(f"Starting CSV Compare at {URL}")
+    print(f"Starting DataLens at {URL}")
     print("Press Ctrl+C to stop.\n")
 
     _open_browser_delayed(URL)
