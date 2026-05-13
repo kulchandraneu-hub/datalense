@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DataLens — Compare &amp; Validate</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0F172A;--sur:#1E293B;--sur2:#243148;--bdr:#334155;
+  --txt:#F1F5F9;--mut:#94A3B8;
+  --blu:#3B82F6;--grn:#22C55E;--red:#EF4444;--yel:#F59E0B;--pur:#8B5CF6;
+  --font:'Consolas','Cascadia Code','SF Mono','Monaco','Courier New',monospace;
+}
+[data-theme="light"]{
+  --bg:#F1F5F9;--sur:#FFFFFF;--sur2:#E8EEF6;--bdr:#CBD5E1;
+  --txt:#0F172A;--mut:#64748B;
+  --blu:#2563EB;--grn:#16A34A;--red:#DC2626;--yel:#D97706;--pur:#7C3AED;
+}
+html{font-size:13px}
+body{background:var(--bg);color:var(--txt);font-family:var(--font);line-height:1.5;min-height:100vh;transition:background .2s,color .2s}
+
+/* ── Header ── */
+header{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:50px;
+  background:var(--sur);border-bottom:1px solid var(--bdr);position:sticky;top:0;z-index:100;gap:16px}
+.header-left{display:flex;align-items:baseline;gap:10px;flex-shrink:0}
+.logo{font-size:14px;font-weight:700;letter-spacing:.05em;color:var(--blu);white-space:nowrap}
+.logo-mark{color:var(--pur);margin-right:4px}
+.logo-sub{font-size:10px;color:var(--mut);letter-spacing:.06em;white-space:nowrap}
+.header-right{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.btn-header{background:transparent;border:1px solid transparent;color:var(--mut);
+  font-family:var(--font);font-size:12px;padding:4px 10px;cursor:pointer;transition:color .15s,border-color .15s}
+.btn-header:hover{color:var(--txt);border-color:var(--bdr)}
+.btn-help{font-weight:700;font-size:13px;letter-spacing:0}
+.tabs{display:flex;gap:2px}
+.tab-btn{padding:5px 18px;background:transparent;border:1px solid transparent;color:var(--mut);
+  font-family:var(--font);font-size:11px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .15s}
+.tab-btn:hover{color:var(--txt);border-color:var(--bdr)}
+.tab-btn.active{color:var(--blu);border-color:var(--blu);background:rgba(59,130,246,.08)}
+
+/* ── Layout ── */
+.layout{display:grid;grid-template-columns:1fr 290px;gap:14px;padding:14px;max-width:1400px;margin:0 auto;transition:grid-template-columns .2s}
+.layout.sidebar-collapsed{grid-template-columns:1fr 24px}
+@media(max-width:900px){.layout{grid-template-columns:1fr}
+.layout.sidebar-collapsed{grid-template-columns:1fr}}
+
+/* ── Card ── */
+.card{background:var(--sur);border:1px solid var(--bdr);padding:16px;margin-bottom:12px}
+.card-title{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-bottom:12px}
+
+/* ── Form elements ── */
+.lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:5px;display:block}
+input[type=text],select{background:var(--bg);border:1px solid var(--bdr);color:var(--txt);
+  font-family:var(--font);font-size:12px;padding:6px 10px;width:100%;outline:none;transition:border-color .15s}
+input[type=text]:focus,select:focus{border-color:var(--blu)}
+input[type=text]:disabled,select:disabled{opacity:.4;cursor:not-allowed}
+input[type=checkbox]{accent-color:var(--blu);cursor:pointer}
+
+/* ── Buttons ── */
+button{cursor:pointer;font-family:var(--font)}
+.btn-primary{background:var(--blu);color:#fff;border:none;padding:8px 22px;
+  font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;transition:background .15s,opacity .15s}
+.btn-primary:hover:not(:disabled){background:#2563EB}
+.btn-primary:disabled{opacity:.35;cursor:not-allowed}
+.btn-icon{background:var(--sur2);border:1px solid var(--bdr);color:var(--mut);padding:6px 10px;
+  font-size:13px;flex-shrink:0;transition:color .15s,border-color .15s}
+.btn-icon:hover:not(:disabled){color:var(--txt);border-color:var(--blu)}
+.btn-icon:disabled{opacity:.35;cursor:not-allowed}
+.btn-ghost{background:transparent;border:none;color:var(--mut);font-size:14px;padding:2px 6px;transition:color .15s}
+.btn-ghost:hover{color:var(--txt)}
+.btn-stop{background:var(--red);border:none;color:#fff;padding:4px 14px;
+  font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;transition:background .15s}
+.btn-stop:hover{background:#DC2626}
+.btn-sm{background:var(--sur2);border:1px solid var(--bdr);color:var(--mut);padding:3px 12px;
+  font-size:11px;letter-spacing:.06em;font-family:var(--font);transition:color .15s,border-color .15s}
+.btn-sm:hover{color:var(--txt);border-color:var(--mut)}
+
+/* ── File grid ── */
+.file-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px}
+@media(max-width:620px){.file-grid{grid-template-columns:1fr}}
+.path-row{display:flex;gap:4px}
+.path-row input{flex:1}
+.sheet-row{display:flex;align-items:center;gap:8px;margin-top:6px}
+.sheet-row .lbl{margin-bottom:0;white-space:nowrap;flex-shrink:0}
+.file-chip{margin-top:6px;padding:4px 10px;background:var(--bg);
+  border-left:3px solid var(--grn);font-size:11px;color:var(--mut)}
+.file-chip strong{color:var(--txt)}
+.mem-banner{margin-top:6px;padding:4px 10px;font-size:11px;
+  border-left:3px solid var(--yel);background:rgba(245,158,11,.07);color:var(--yel)}
+.mem-banner.lvl-err{border-color:var(--red);background:rgba(239,68,68,.07);color:var(--red)}
+
+/* ── Options row ── */
+.opts-row{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+.opt-g{flex:1;min-width:160px}
+.opt-fixed{flex-shrink:0}
+.checks{display:flex;gap:14px;align-items:center;height:30px}
+.checks label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--mut);transition:color .15s}
+.checks label:hover{color:var(--txt)}
+
+/* ── Error banner ── */
+.banner-err{padding:8px 12px;background:rgba(239,68,68,.1);border-left:3px solid var(--red);
+  color:var(--red);font-size:12px;margin-bottom:12px}
+
+/* ── Progress ── */
+.prog-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+#prog-phase{font-size:15px;font-weight:700;color:var(--blu);letter-spacing:.04em}
+#prog-detail{font-size:11px;color:var(--mut);margin-bottom:10px;min-height:16px}
+.prog-track{height:3px;background:var(--bdr);margin-bottom:8px;overflow:hidden}
+#prog-fill{height:100%;background:var(--blu);width:0%;transition:width .4s ease}
+#prog-fill.indeterminate{width:30%;animation:scan 1.6s ease-in-out infinite}
+@keyframes scan{0%{transform:translateX(-200%)}100%{transform:translateX(400%)}}
+.prog-ft{display:flex;justify-content:space-between;font-size:11px;color:var(--mut)}
+
+/* ── Metric bar ── */
+.metric-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.metric{padding:4px 12px;font-size:11px;letter-spacing:.06em;font-weight:700;
+  display:flex;align-items:center;gap:5px;border-left:3px solid}
+.m-compat  {border-color:var(--blu);background:rgba(59,130,246,.1);color:var(--blu)}
+.m-compat.ok{border-color:var(--grn);background:rgba(34,197,94,.1);color:var(--grn)}
+.m-compat.warn{border-color:var(--yel);background:rgba(245,158,11,.1);color:var(--yel)}
+.m-added   {border-color:var(--grn);background:rgba(34,197,94,.1);color:var(--grn)}
+.m-removed {border-color:var(--red);background:rgba(239,68,68,.1);color:var(--red)}
+.m-modified{border-color:var(--yel);background:rgba(245,158,11,.1);color:var(--yel)}
+.m-fmt     {border-color:var(--mut);background:rgba(148,163,184,.08);color:var(--mut)}
+.m-dur     {border-color:var(--bdr);background:rgba(148,163,184,.05);color:var(--mut);margin-left:auto}
+
+/* ── Schema diff ── */
+.schema-panel{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;
+  padding:12px;background:var(--bg);border:1px solid var(--bdr)}
+.schema-col h4{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:8px}
+.col-tag{display:inline-block;padding:2px 8px;margin:2px 2px 2px 0;font-size:11px;border:1px solid}
+.col-tag.miss{border-color:var(--red);color:var(--red);background:rgba(239,68,68,.08)}
+.col-tag.xtra{border-color:var(--yel);color:var(--yel);background:rgba(245,158,11,.08)}
+.col-tag.rename{border-color:var(--pur);color:var(--pur);background:rgba(139,92,246,.08)}
+
+/* ── Result tabs ── */
+.result-tabs{display:flex;border-bottom:1px solid var(--bdr);margin-bottom:14px}
+.rtab{padding:6px 18px;background:transparent;border:none;border-bottom:2px solid transparent;
+  color:var(--mut);font-family:var(--font);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  cursor:pointer;margin-bottom:-1px;transition:color .15s,border-color .15s}
+.rtab:hover{color:var(--txt)}
+.rtab.active{color:var(--blu);border-bottom-color:var(--blu)}
+
+/* ── Tables ── */
+.tbl-wrap{overflow-x:auto}
+.dtbl{width:100%;border-collapse:collapse;font-size:12px}
+.dtbl th{text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--mut);padding:6px 10px;border-bottom:1px solid var(--bdr);white-space:nowrap}
+.dtbl td{padding:5px 10px;border-bottom:1px solid rgba(51,65,85,.4);vertical-align:top;
+  max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dtbl tr:hover td{background:var(--sur2)}
+.row-add td{background:rgba(34,197,94,.06)}
+.row-rem td{background:rgba(239,68,68,.06)}
+.row-mod td{background:rgba(245,158,11,.06)}
+.row-fmt td{background:rgba(148,163,184,.04)}
+
+/* ── Badges ── */
+.badge{display:inline-block;padding:1px 7px;font-size:10px;letter-spacing:.06em;
+  font-weight:700;text-transform:uppercase;border:1px solid}
+.b-add{border-color:var(--grn);color:var(--grn)}
+.b-rem{border-color:var(--red);color:var(--red)}
+.b-mod{border-color:var(--yel);color:var(--yel)}
+.b-fmt{border-color:var(--mut);color:var(--mut)}
+.b-info{border-color:var(--blu);color:var(--blu)}
+.b-warn{border-color:var(--yel);color:var(--yel)}
+.b-err{border-color:var(--red);color:var(--red)}
+.b-crit{border-color:var(--pur);color:var(--pur)}
+.b-cmp{border-color:var(--blu);color:var(--blu)}
+.b-val{border-color:var(--pur);color:var(--pur)}
+.b-ok{border-color:var(--grn);color:var(--grn)}
+.b-canc{border-color:var(--mut);color:var(--mut)}
+
+/* ── Validation accordion ── */
+.sev-sec{margin-bottom:6px}
+.sev-hd{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);
+  border-left:3px solid;cursor:pointer;user-select:none;transition:background .15s}
+.sev-hd:hover{background:var(--sur2)}
+.sev-hd.sev-info{border-color:var(--blu)}
+.sev-hd.sev-warning{border-color:var(--yel)}
+.sev-hd.sev-error{border-color:var(--red)}
+.sev-hd.sev-critical{border-color:var(--pur)}
+.sev-hd span{font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.sev-cnt{margin-left:auto;font-size:11px;color:var(--mut)}
+.sev-arr{font-size:10px;color:var(--mut);transition:transform .15s;flex-shrink:0}
+.sev-arr.open{transform:rotate(90deg)}
+.sev-body{display:none}
+.sev-body.open{display:block}
+.chk-item{padding:5px 10px 5px 18px;border-bottom:1px solid rgba(51,65,85,.3);font-size:11px}
+.chk-msg{color:var(--txt)}
+.chk-meta{color:var(--mut);font-size:10px;margin-top:1px}
+
+/* ── Profile ── */
+.sec-head{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);
+  padding-bottom:6px;border-bottom:1px solid var(--bdr);margin-bottom:10px;margin-top:16px}
+.sec-head:first-child{margin-top:0}
+.null-wrap{display:flex;align-items:center;gap:6px}
+.null-bar{height:3px;width:56px;background:var(--bdr);flex-shrink:0}
+.null-fill{height:100%;background:var(--yel)}
+.null-fill.hi{background:var(--red)}
+
+/* ── Diff val change ── */
+.val-old{color:var(--red);opacity:.85}
+.val-arr{color:var(--mut);margin:0 3px}
+.val-new{color:var(--grn)}
+
+/* ── Sidebar ── */
+#sidebar{position:sticky;top:60px;align-self:start;overflow:hidden}
+.sid-hd{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;
+  background:var(--sur);border:1px solid var(--bdr);border-bottom:none;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);white-space:nowrap}
+.sid-hd-title{overflow:hidden;transition:opacity .15s}
+#hist-list{background:var(--sur);border:1px solid var(--bdr);
+  max-height:calc(100vh - 120px);overflow-y:auto}
+/* collapsed state — replaced with a clickable vertical strip */
+.sidebar-collapsed #sidebar .sid-hd{display:none}
+.sidebar-collapsed #sidebar #hist-list{display:none}
+.sid-expand-strip{display:none;width:24px;background:var(--sur);border:1px solid var(--bdr);
+  cursor:pointer;align-items:center;justify-content:center;flex-direction:column;gap:8px;
+  padding:12px 0;min-height:80px;transition:background .15s}
+.sid-expand-strip:hover{background:var(--sur2)}
+.sid-expand-strip:hover .sid-expand-arrow{color:var(--blu)}
+.sid-expand-label{font-size:9px;letter-spacing:.12em;color:var(--mut);
+  writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);text-transform:uppercase}
+.sid-expand-arrow{font-size:13px;color:var(--mut);line-height:1;transition:color .15s}
+.sidebar-collapsed #sidebar .sid-expand-strip{display:flex}
+.sid-collapse-btn{transition:color .15s}
+.hist-empty{padding:20px 14px;font-size:12px;color:var(--mut);text-align:center}
+.hist-item{padding:10px 14px;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .1s;position:relative}
+.hist-item:hover{background:var(--sur2)}
+.hist-item:last-child{border-bottom:none}
+.hist-del{position:absolute;top:6px;right:6px;background:transparent;border:none;
+  color:var(--mut);font-size:13px;line-height:1;padding:2px 4px;opacity:0;transition:opacity .15s,color .15s}
+.hist-item:hover .hist-del{opacity:1}
+.hist-del:hover{color:var(--red)!important}
+.hist-r1{display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap}
+.hist-files{font-size:11px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-sum{font-size:10px;color:var(--mut);margin-top:2px}
+
+/* ── Modal ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:500;
+  display:flex;align-items:center;justify-content:center}
+.modal{background:var(--sur);border:1px solid var(--bdr);width:780px;
+  max-width:96vw;height:520px;max-height:90vh;display:flex;flex-direction:column}
+/* address bar row */
+.modal-hd{display:flex;align-items:center;gap:6px;
+  padding:8px 10px;border-bottom:1px solid var(--bdr);background:var(--bg);flex-shrink:0}
+.br-back{background:var(--sur2);border:1px solid var(--bdr);color:var(--mut);
+  width:28px;height:28px;flex-shrink:0;font-size:17px;line-height:1;display:flex;
+  align-items:center;justify-content:center;transition:color .15s,border-color .15s;padding:0}
+.br-back:hover:not(:disabled){color:var(--txt);border-color:var(--mut)}
+.br-back:disabled{opacity:.3;cursor:not-allowed}
+.br-addr{flex:1;background:var(--bg);border:1px solid var(--bdr);color:var(--txt);
+  font-family:var(--font);font-size:12px;padding:4px 10px;outline:none;height:28px}
+.br-addr:focus{border-color:var(--blu)}
+.modal-close{background:transparent;border:none;color:var(--mut);font-size:16px;
+  cursor:pointer;padding:0 4px;flex-shrink:0;line-height:1}
+.modal-close:hover{color:var(--txt)}
+/* body = sidebar + file list */
+.modal-body{display:flex;flex:1;overflow:hidden;min-height:0}
+/* sidebar */
+.br-sidebar{width:148px;flex-shrink:0;border-right:1px solid var(--bdr);
+  overflow-y:auto;padding:8px 0;background:var(--bg)}
+.br-qa-hd{font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--mut);padding:4px 12px 4px;opacity:.6}
+.br-qa-item{display:flex;align-items:center;gap:7px;padding:6px 12px;
+  cursor:pointer;font-size:12px;color:var(--mut);transition:background .1s,color .1s;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.br-qa-item:hover{background:var(--sur);color:var(--txt)}
+.br-qa-item.active{color:var(--blu);background:rgba(59,130,246,.1)}
+.br-qa-ico{font-size:13px;flex-shrink:0;width:16px;text-align:center}
+/* main file list */
+.br-main{flex:1;overflow-y:auto}
+#browse-entries{height:100%}
+.br-item{display:flex;align-items:center;gap:8px;padding:6px 14px;
+  border-bottom:1px solid rgba(51,65,85,.2);cursor:pointer;font-size:12px;transition:background .1s}
+.br-item:hover{background:var(--sur2)}
+.br-item:last-child{border-bottom:none}
+.br-up{color:var(--mut)}
+.br-dir{color:var(--txt)}
+.br-file{color:var(--txt)}
+.br-ico{width:20px;text-align:center;font-size:14px;flex-shrink:0}
+.br-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.br-sz{font-size:11px;color:var(--mut);flex-shrink:0;min-width:64px;text-align:right}
+.br-load{padding:24px;text-align:center;color:var(--mut);font-size:12px}
+/* status bar */
+.br-statusbar{padding:4px 12px;border-top:1px solid var(--bdr);
+  font-size:10px;color:var(--mut);background:var(--bg);flex-shrink:0;
+  letter-spacing:.04em}
+
+/* ── Validation Rules panel ── */
+#val-rules-panel{display:none;margin-top:12px;border-top:1px solid var(--bdr);padding-top:12px}
+.vr-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.vr-hd-left{display:flex;align-items:center;gap:16px}
+.vr-title{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
+.vr-thresholds{display:flex;align-items:center;gap:8px}
+.vr-thresh-lbl{font-size:10px;color:var(--mut);white-space:nowrap}
+.vr-thresh-inp{width:64px!important;padding:3px 8px!important;font-size:11px!important}
+.vr-rules-table{width:100%;border-collapse:collapse;margin-bottom:8px}
+.vr-rules-table th{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--mut);padding:4px 8px;border-bottom:1px solid var(--bdr);text-align:left}
+.vr-rules-table td{padding:4px 4px;vertical-align:middle;border-bottom:1px solid rgba(51,65,85,.3)}
+.vr-col-inp{width:100%!important;font-size:11px!important;padding:4px 8px!important}
+.vr-type-sel{width:100%!important;font-size:11px!important;padding:4px 8px!important}
+.vr-val-inp{width:100%!important;font-size:11px!important;padding:4px 8px!important}
+.vr-no-rules{padding:8px 8px;font-size:11px;color:var(--mut);font-style:italic}
+td.vr-del-cell{width:28px;text-align:center}
+.btn-vr-del{background:transparent;border:none;color:var(--mut);font-size:14px;
+  padding:2px 4px;line-height:1;transition:color .15s}
+.btn-vr-del:hover{color:var(--red)}
+.btn-add-rule{background:var(--sur2);border:1px solid var(--bdr);color:var(--mut);
+  font-size:11px;letter-spacing:.06em;font-family:var(--font);padding:4px 14px;transition:color .15s,border-color .15s}
+.btn-add-rule:hover{color:var(--txt);border-color:var(--mut)}
+
+/* ── Intro card ── */
+.intro-card{border-left:3px solid var(--pur)}
+.intro-hd{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+.intro-title{font-size:14px;font-weight:700;color:var(--txt);margin-bottom:3px}
+.intro-sub{font-size:12px;color:var(--mut)}
+.intro-dismiss{background:transparent;border:none;color:var(--mut);font-size:16px;
+  cursor:pointer;padding:0 2px;flex-shrink:0;margin-left:12px;transition:color .15s}
+.intro-dismiss:hover{color:var(--txt)}
+.intro-steps{display:grid;grid-template-columns:1fr 16px 1fr 16px 1fr;gap:0;align-items:start;margin-bottom:14px}
+@media(max-width:680px){.intro-steps{grid-template-columns:1fr;gap:8px}.intro-sep{display:none}}
+.intro-step{background:var(--bg);border:1px solid var(--bdr);padding:12px 14px}
+.intro-step-num{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--pur);font-weight:700;margin-bottom:5px}
+.intro-step-title{font-size:12px;font-weight:700;color:var(--txt);margin-bottom:4px}
+.intro-step-desc{font-size:11px;color:var(--mut);line-height:1.5}
+.intro-sep{display:flex;align-items:center;justify-content:center;color:var(--bdr);font-size:14px;padding-top:24px}
+.intro-caps{display:flex;flex-wrap:wrap;gap:6px}
+.intro-cap{font-size:10px;padding:2px 9px;border:1px solid var(--bdr);color:var(--mut);letter-spacing:.04em}
+
+/* ── Help modal ── */
+.help-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:600;display:flex;align-items:center;justify-content:center}
+.help-modal{background:var(--sur);border:1px solid var(--bdr);width:820px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column}
+.help-hd{display:flex;align-items:flex-start;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--bdr);background:var(--bg);flex-shrink:0}
+.help-hd-title{font-size:13px;font-weight:700;color:var(--txt)}
+.help-hd-sub{font-size:10px;color:var(--mut);margin-top:2px}
+.help-body{overflow-y:auto;padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.help-body{grid-template-columns:1fr}}
+.help-sec{background:var(--bg);border:1px solid var(--bdr);padding:14px}
+.help-sec.full{grid-column:1/-1}
+.help-sec-title{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--pur);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--bdr)}
+.help-row{display:flex;gap:10px;margin-bottom:7px;font-size:11px}
+.help-row:last-child{margin-bottom:0}
+.help-key{color:var(--blu);font-weight:700;flex-shrink:0;min-width:110px;padding-top:1px}
+.help-val{color:var(--mut);line-height:1.5}
+.help-p{font-size:11px;color:var(--mut);line-height:1.6;margin-bottom:7px}
+.help-p:last-child{margin-bottom:0}
+.help-tag{display:inline-block;padding:1px 7px;border:1px solid;font-size:10px;letter-spacing:.04em;margin:2px 3px 2px 0}
+.ht-blu{border-color:var(--blu);color:var(--blu)}.ht-grn{border-color:var(--grn);color:var(--grn)}
+.ht-red{border-color:var(--red);color:var(--red)}.ht-pur{border-color:var(--pur);color:var(--pur)}
+.ht-yel{border-color:var(--yel);color:var(--yel)}
+.help-ft{padding:8px 18px;border-top:1px solid var(--bdr);font-size:10px;color:var(--mut);background:var(--bg);flex-shrink:0;letter-spacing:.04em}
+
+/* ── Misc ── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--mut)}
+.no-data{padding:20px;text-align:center;color:var(--mut);font-size:12px}
+.mt8{margin-top:8px}
+.c-mut{color:var(--mut)}
+.c-grn{color:var(--grn)}
+.c-red{color:var(--red)}
+.c-yel{color:var(--yel)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <span class="logo"><span class="logo-mark">◈</span>DataLens</span>
+    <span class="logo-sub">Compare · Validate · CSV &amp; Excel</span>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" id="tb-compare" onclick="switchTab('compare')">Compare</button>
+    <button class="tab-btn" id="tb-validate" onclick="switchTab('validate')">Validate</button>
+  </div>
+  <div class="header-right">
+    <button class="btn-header btn-help" onclick="showHelp()" title="Help &amp; Reference">?</button>
+    <button class="btn-header" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme" style="font-size:15px">🌙</button>
+  </div>
+</header>
+
+<div class="layout">
+<main>
+
+  <!-- ── Intro card (dismissed state stored in localStorage) ── -->
+  <div class="card intro-card" id="intro-card">
+    <div class="intro-hd">
+      <div>
+        <div class="intro-title">◈ Welcome to DataLens</div>
+        <div class="intro-sub">Compare and validate CSV &amp; Excel files before upload — works on files up to 5 GB+</div>
+      </div>
+      <button class="intro-dismiss" onclick="dismissIntro()" title="Dismiss">✕</button>
+    </div>
+    <div class="intro-steps">
+      <div class="intro-step">
+        <div class="intro-step-num">Step 1</div>
+        <div class="intro-step-title">Load Files</div>
+        <div class="intro-step-desc">Browse or paste the path to your <strong>Reference</strong> file (the source of truth) and your <strong>Candidate</strong> file (the one to verify). CSV and Excel .xlsx supported.</div>
+      </div>
+      <div class="intro-sep">›</div>
+      <div class="intro-step">
+        <div class="intro-step-num">Step 2</div>
+        <div class="intro-step-title">Choose an Action</div>
+        <div class="intro-step-desc"><strong>Compare</strong> finds row-level differences — added, removed, and modified rows. <strong>Validate</strong> checks data quality: null rates, duplicate keys, and column-level business rules.</div>
+      </div>
+      <div class="intro-sep">›</div>
+      <div class="intro-step">
+        <div class="intro-step-num">Step 3</div>
+        <div class="intro-step-title">Review Results</div>
+        <div class="intro-step-desc">Browse the <strong>Diff</strong>, <strong>Validation</strong>, and <strong>Profile</strong> tabs. All exports (HTML report, diff CSV/Excel/JSON) are saved to the <code>exports/</code> folder automatically.</div>
+      </div>
+    </div>
+    <div class="intro-caps">
+      <span class="intro-cap">CSV · TSV · Excel .xlsx</span>
+      <span class="intro-cap">Files up to 5 GB+</span>
+      <span class="intro-cap">Key-based row matching</span>
+      <span class="intro-cap">Auto key detection</span>
+      <span class="intro-cap">Column validation rules</span>
+      <span class="intro-cap">HTML · CSV · Excel exports</span>
+      <span class="intro-cap">Run history</span>
+      <span class="intro-cap">Light &amp; dark theme</span>
+    </div>
+  </div>
+
+  <!-- ── Inputs ── -->
+  <div class="card">
+    <div class="file-grid">
+
+      <!-- File 1 -->
+      <div>
+        <span class="lbl">Reference File</span>
+        <div class="path-row">
+          <input type="text" id="path-f1" placeholder="C:\path\to\reference.csv"
+                 onblur="onPathBlur('f1')" onkeydown="onPathKey(event,'f1')">
+          <button class="btn-icon" id="br-btn-f1" onclick="openBrowse('f1')" title="Browse">📁</button>
+        </div>
+        <div id="sheet-row-f1" class="sheet-row" style="display:none">
+          <span class="lbl">Sheet</span>
+          <select id="sheet-f1" onchange="onSheetChange('f1')"></select>
+        </div>
+        <div id="chip-f1" class="file-chip" style="display:none"></div>
+        <div id="mem-f1"  class="mem-banner" style="display:none"></div>
+      </div>
+
+      <!-- File 2 -->
+      <div>
+        <span class="lbl">Candidate File</span>
+        <div class="path-row">
+          <input type="text" id="path-f2" placeholder="C:\path\to\candidate.csv"
+                 onblur="onPathBlur('f2')" onkeydown="onPathKey(event,'f2')">
+          <button class="btn-icon" id="br-btn-f2" onclick="openBrowse('f2')" title="Browse">📁</button>
+        </div>
+        <div id="sheet-row-f2" class="sheet-row" style="display:none">
+          <span class="lbl">Sheet</span>
+          <select id="sheet-f2" onchange="onSheetChange('f2')"></select>
+        </div>
+        <div id="chip-f2" class="file-chip" style="display:none"></div>
+        <div id="mem-f2"  class="mem-banner" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- Options -->
+    <div class="opts-row">
+      <div class="opt-g">
+        <span class="lbl">Key Columns</span>
+        <input type="text" id="key-cols" placeholder="Auto-detect  ·  e.g. id,employee_id">
+      </div>
+      <div class="opt-g">
+        <span class="lbl">Ignore</span>
+        <div class="checks">
+          <label><input type="checkbox" id="ign-case"> Case</label>
+          <label><input type="checkbox" id="ign-ws"> Whitespace</label>
+        </div>
+      </div>
+      <div class="opt-fixed">
+        <span class="lbl">&nbsp;</span>
+        <button class="btn-primary" id="run-btn" onclick="startRun()" disabled>
+          <span id="run-lbl">▶ Compare Files</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Validation Rules (shown only in Validate tab) -->
+    <div id="val-rules-panel">
+      <div class="vr-hd">
+        <div class="vr-hd-left">
+          <span class="vr-title">Validation Rules</span>
+          <div class="vr-thresholds">
+            <span class="vr-thresh-lbl">Null warn &gt;</span>
+            <input type="number" id="vr-null-warn" class="vr-thresh-inp" value="50" min="0" max="100" step="1" title="Null warning threshold (%)">
+            <span class="vr-thresh-lbl">%&nbsp;&nbsp;error &gt;</span>
+            <input type="number" id="vr-null-error" class="vr-thresh-inp" value="90" min="0" max="100" step="1" title="Null error threshold (%)">
+            <span class="vr-thresh-lbl">%</span>
+          </div>
+        </div>
+        <button class="btn-add-rule" onclick="vrAddRule()">+ Add Column Rule</button>
+      </div>
+      <table class="vr-rules-table" id="vr-table">
+        <thead>
+          <tr>
+            <th style="width:28%">Column Name</th>
+            <th style="width:30%">Rule</th>
+            <th>Value</th>
+            <th style="width:28px"></th>
+          </tr>
+        </thead>
+        <tbody id="vr-tbody">
+          <tr id="vr-empty-row"><td colspan="4" class="vr-no-rules">No column rules — defaults apply</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Error Banner ── -->
+  <div id="err-banner" class="banner-err" style="display:none"></div>
+
+  <!-- ── Progress Card ── -->
+  <div class="card" id="card-prog" style="display:none">
+    <div class="prog-hd">
+      <span id="prog-phase">Starting…</span>
+      <button class="btn-stop" onclick="cancelRun()">■ Stop</button>
+    </div>
+    <div id="prog-detail"></div>
+    <div class="prog-track"><div id="prog-fill" class="indeterminate"></div></div>
+    <div class="prog-ft">
+      <span id="prog-timer">0s</span>
+      <span id="prog-frac"></span>
+    </div>
+  </div>
+
+  <!-- ── Results Card ── -->
+  <div class="card" id="card-res" style="display:none">
+    <div class="metric-bar" id="metric-bar"></div>
+    <div id="schema-panel" style="display:none"></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="btn-sm" id="exp-btn" onclick="exportCSV()" style="display:none">⬇ Export CSV</button>
+    </div>
+    <div class="result-tabs" id="result-tabs"></div>
+    <div id="rt-diff"></div>
+    <div id="rt-validation" style="display:none"></div>
+    <div id="rt-profile"    style="display:none"></div>
+  </div>
+
+</main>
+
+<!-- ── Sidebar ── -->
+<aside id="sidebar">
+  <!-- expanded header -->
+  <div class="sid-hd">
+    <span class="sid-hd-title">History</span>
+    <div class="sid-hd-actions" style="display:flex;gap:4px;align-items:center">
+      <button class="btn-ghost" onclick="loadHistory()" title="Refresh">↺</button>
+      <button class="btn-ghost" id="hist-clear-btn" onclick="clearAllHistory()" title="Clear all history" style="display:none;color:var(--red);opacity:.7">⊗</button>
+    </div>
+    <button class="btn-ghost sid-collapse-btn" onclick="toggleSidebar()" title="Collapse sidebar" style="flex-shrink:0">‹</button>
+  </div>
+  <!-- collapsed expand strip -->
+  <div class="sid-expand-strip" onclick="toggleSidebar()" title="Expand sidebar">
+    <span class="sid-expand-arrow">›</span>
+    <span class="sid-expand-label">History</span>
+  </div>
+  <div id="hist-list"><div class="hist-empty">No history yet</div></div>
+</aside>
+</div>
+
+<!-- ── Browse Modal ── -->
+<div id="browse-bg" class="modal-bg" style="display:none" onclick="onBgClick(event)">
+  <div class="modal">
+    <div class="modal-hd">
+      <button class="br-back" id="br-back-btn" onclick="brGoUp()" disabled title="Up one level">↑</button>
+      <input type="text" class="br-addr" id="br-addr"
+             placeholder="Type or paste a path and press Enter…"
+             onkeydown="if(event.key==='Enter'){browseDir(this.value.trim());this.blur()}">
+      <button class="modal-close" onclick="closeBrowse()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="br-sidebar" id="br-sidebar"></div>
+      <div class="br-main"><div id="browse-entries"></div></div>
+    </div>
+    <div class="br-statusbar" id="br-statusbar"></div>
+  </div>
+</div>
+
+<!-- ── Help Modal ── -->
+<div id="help-bg" class="help-bg" style="display:none" onclick="if(event.target===this)closeHelp()">
+  <div class="help-modal">
+    <div class="help-hd">
+      <div>
+        <div class="help-hd-title">◈ DataLens — Help &amp; Reference</div>
+        <div class="help-hd-sub">Compare &amp; validate CSV/Excel files · Tested on 5 GB+ files with 13 M+ rows</div>
+      </div>
+      <button class="modal-close" onclick="closeHelp()">✕</button>
+    </div>
+    <div class="help-body">
+
+      <!-- Compare mode -->
+      <div class="help-sec">
+        <div class="help-sec-title">Compare Mode</div>
+        <div class="help-p">Finds row-level differences between a Reference and a Candidate file. Rows are matched by key column value — not position — so reordered rows are handled correctly.</div>
+        <div class="help-row"><span class="help-key">Added rows</span><span class="help-val">Rows present in Candidate but not in Reference</span></div>
+        <div class="help-row"><span class="help-key">Removed rows</span><span class="help-val">Rows present in Reference but missing from Candidate</span></div>
+        <div class="help-row"><span class="help-key">Modified rows</span><span class="help-val">Same key, one or more column values changed</span></div>
+        <div class="help-row"><span class="help-key">Formatting only</span><span class="help-val">Change is purely case or whitespace (flagged separately)</span></div>
+      </div>
+
+      <!-- Validate mode -->
+      <div class="help-sec">
+        <div class="help-sec-title">Validate Mode</div>
+        <div class="help-p">Checks data quality on both files independently. Findings are grouped by severity:</div>
+        <div class="help-row"><span class="help-key"><span class="help-tag ht-blu">INFO</span></span><span class="help-val">Informational — no action required</span></div>
+        <div class="help-row"><span class="help-key"><span class="help-tag ht-yel">WARNING</span></span><span class="help-val">Potential issue worth reviewing</span></div>
+        <div class="help-row"><span class="help-key"><span class="help-tag ht-red">ERROR</span></span><span class="help-val">Definite data quality problem</span></div>
+        <div class="help-row"><span class="help-key"><span class="help-tag ht-pur">CRITICAL</span></span><span class="help-val">Blocking issue — upload not recommended</span></div>
+      </div>
+
+      <!-- Key columns -->
+      <div class="help-sec">
+        <div class="help-sec-title">Key Columns</div>
+        <div class="help-p">The unique identifier used to match rows across files. Leave blank to auto-detect (first column that is 100% unique is chosen).</div>
+        <div class="help-row"><span class="help-key">Single key</span><span class="help-val"><code>employee_id</code></span></div>
+        <div class="help-row"><span class="help-key">Composite key</span><span class="help-val"><code>dept_id,employee_id</code></span></div>
+        <div class="help-row"><span class="help-key">Tip</span><span class="help-val">If no unique column exists, comparison still runs but duplicate-key warnings appear</span></div>
+      </div>
+
+      <!-- Column rules -->
+      <div class="help-sec">
+        <div class="help-sec-title">Column Validation Rules</div>
+        <div class="help-p">Per-column constraints checked in Validate mode. Add rules under the <em>Validation Rules</em> panel.</div>
+        <div class="help-row"><span class="help-key">Required</span><span class="help-val">Column must have no nulls/blanks</span></div>
+        <div class="help-row"><span class="help-key">Max null rate</span><span class="help-val">% of nulls allowed before flagging as error</span></div>
+        <div class="help-row"><span class="help-key">Expected type</span><span class="help-val">All values must cast to Int64 / Float64 / Boolean / Date…</span></div>
+        <div class="help-row"><span class="help-key">Min / Max value</span><span class="help-val">Numeric range check</span></div>
+        <div class="help-row"><span class="help-key">Regex pattern</span><span class="help-val">Every value must match the pattern</span></div>
+        <div class="help-row"><span class="help-key">Allowed values</span><span class="help-val">Comma-separated whitelist of valid values</span></div>
+      </div>
+
+      <!-- File formats -->
+      <div class="help-sec">
+        <div class="help-sec-title">File Formats</div>
+        <div class="help-row"><span class="help-key">CSV / TSV / TXT</span><span class="help-val">Auto-detects delimiter, encoding, and BOM. Falls back to cp1252 if needed.</span></div>
+        <div class="help-row"><span class="help-key">Excel (.xlsx)</span><span class="help-val">Sheet picker shown when multiple sheets exist. Selected sheet is converted to a temp CSV before processing — no data left on disk.</span></div>
+        <div class="help-row"><span class="help-key">Large files</span><span class="help-val">Files are read from disk via streaming (Polars LazyFrame). Nothing is uploaded to the browser. Tested at 5 GB / 13 M rows.</span></div>
+        <div class="help-row"><span class="help-key">Memory guard</span><span class="help-val">Yellow banner = caution, Red = blocked. Threshold based on available system RAM.</span></div>
+      </div>
+
+      <!-- Outputs -->
+      <div class="help-sec">
+        <div class="help-sec-title">Outputs &amp; Exports</div>
+        <div class="help-p">All exports are written to the <code>exports/</code> folder inside the app directory. Files are never overwritten — each run adds a datetime suffix.</div>
+        <div class="help-row"><span class="help-key">HTML report</span><span class="help-val">Full comparison report with validation summary and profile</span></div>
+        <div class="help-row"><span class="help-key">Diff CSV</span><span class="help-val">Row-level differences — download via the <em>Export CSV</em> button in results</span></div>
+        <div class="help-row"><span class="help-key">Diff Excel</span><span class="help-val">Same as CSV but formatted as .xlsx with colour coding</span></div>
+        <div class="help-row"><span class="help-key">Diff JSON</span><span class="help-val">Machine-readable diff for downstream pipelines</span></div>
+      </div>
+
+      <!-- Tips -->
+      <div class="help-sec full">
+        <div class="help-sec-title">Tips &amp; Shortcuts</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px">
+          <div class="help-row"><span class="help-key">Paste quoted path</span><span class="help-val">Windows "Copy as path" gives <code>"C:\..."</code> — quotes are stripped automatically</span></div>
+          <div class="help-row"><span class="help-key">Enter key</span><span class="help-val">Press Enter in any path field to load the file immediately</span></div>
+          <div class="help-row"><span class="help-key">File browser</span><span class="help-val">Quick Access sidebar jumps to Project, Downloads, Desktop, Documents</span></div>
+          <div class="help-row"><span class="help-key">Address bar</span><span class="help-val">Type or paste any path in the browser address bar and press Enter to navigate</span></div>
+          <div class="help-row"><span class="help-key">Cancel</span><span class="help-val">Stop button cancels between phases — current phase runs to completion first</span></div>
+          <div class="help-row"><span class="help-key">History</span><span class="help-val">Past runs are stored in <code>history.db</code>. Click a run to restore its file paths.</span></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="help-ft">DataLens · CSV &amp; Excel comparison engine powered by Polars · Exports saved to <code>exports/</code></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ─────────────────────────────────── Theme
+(function(){
+  const saved = localStorage.getItem('theme') || 'dark';
+  if(saved === 'light') document.documentElement.setAttribute('data-theme','light');
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('theme-toggle');
+    if(btn) btn.textContent = saved === 'light' ? '🌙' : '☀️';
+  });
+})();
+function toggleTheme(){
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const next = isLight ? 'dark' : 'light';
+  if(next === 'light') document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('theme', next);
+  document.getElementById('theme-toggle').textContent = next === 'light' ? '🌙' : '☀️';
+}
+// ─────────────────────────────────── Intro
+(function(){
+  if(localStorage.getItem('dl-intro-dismissed')==='1')
+    document.getElementById('intro-card').style.display='none';
+})();
+function dismissIntro(){
+  document.getElementById('intro-card').style.display='none';
+  localStorage.setItem('dl-intro-dismissed','1');
+}
+
+// ─────────────────────────────────── Help modal
+function showHelp(){ ge('help-bg').style.display='flex'; }
+function closeHelp(){ ge('help-bg').style.display='none'; }
+
+// ─────────────────────────────────── State
+const S = {
+  tab:'compare', f1:null, f2:null,
+  jobId:null, sse:null, result:null, running:false,
+  browseTarget:null, timerIv:null, timerStart:null,
+  resultTab:'diff', lastBrowsePath:'', brParent:null,
+};
+let histRuns = [];
+
+// ─────────────────────────────────── API
+async function apiPost(url, body) {
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  if (!r.ok) {
+    let msg = r.statusText;
+    try { const j = await r.json(); msg = j.detail || JSON.stringify(j); } catch {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+async function apiGet(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.json();
+}
+
+// ─────────────────────────────────── Tab
+function switchTab(tab) {
+  S.tab = tab;
+  document.getElementById('tb-compare').classList.toggle('active', tab==='compare');
+  document.getElementById('tb-validate').classList.toggle('active', tab==='validate');
+  document.getElementById('run-lbl').textContent = tab==='compare' ? '▶ Compare Files' : '▶ Validate Files';
+  document.getElementById('val-rules-panel').style.display = tab==='validate' ? '' : 'none';
+  checkRunnable();
+}
+
+// ─────────────────────────────────── Business Rules
+let vrRuleId = 0;
+const VR_TYPES = [
+  {v:'required',      l:'Required (non-null)',  t:'none'},
+  {v:'max_null_rate', l:'Max null rate (%)',     t:'number'},
+  {v:'expected_type', l:'Expected type',         t:'select'},
+  {v:'min_value',     l:'Min value',             t:'number'},
+  {v:'max_value',     l:'Max value',             t:'number'},
+  {v:'regex_pattern', l:'Regex pattern',         t:'text'},
+  {v:'allowed_values',l:'Allowed values (CSV)',  t:'text'},
+];
+const VR_TYPES_MAP = Object.fromEntries(VR_TYPES.map(x=>[x.v,x]));
+
+function vrAddRule() {
+  const id = ++vrRuleId;
+  const tbody = ge('vr-tbody');
+  const empty = ge('vr-empty-row');
+  if (empty) empty.remove();
+
+  const tr = document.createElement('tr');
+  tr.id = 'vr-row-'+id;
+  tr.innerHTML = `
+    <td><input type="text" class="vr-col-inp" placeholder="column_name" id="vr-col-${id}"></td>
+    <td><select class="vr-type-sel" id="vr-type-${id}" onchange="vrTypeChange(${id})">
+      ${VR_TYPES.map(t=>`<option value="${t.v}">${t.l}</option>`).join('')}
+    </select></td>
+    <td id="vr-val-cell-${id}"><span style="color:var(--mut);font-size:11px">—</span></td>
+    <td class="vr-del-cell"><button class="btn-vr-del" onclick="vrDelRule(${id})" title="Remove">✕</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function vrTypeChange(id) {
+  const type = ge('vr-type-'+id).value;
+  const meta = VR_TYPES_MAP[type];
+  const cell = ge('vr-val-cell-'+id);
+  if (meta.t === 'none') {
+    cell.innerHTML = '<span style="color:var(--mut);font-size:11px">—</span>';
+  } else if (meta.t === 'select') {
+    cell.innerHTML = `<select class="vr-val-inp" id="vr-val-${id}">
+      <option value="Utf8">Text (Utf8)</option>
+      <option value="Int64">Integer (Int64)</option>
+      <option value="Float64">Float (Float64)</option>
+      <option value="Boolean">Boolean</option>
+      <option value="Date">Date</option>
+      <option value="Datetime">Datetime</option>
+    </select>`;
+  } else {
+    cell.innerHTML = `<input type="${meta.t==='number'?'number':'text'}" class="vr-val-inp" id="vr-val-${id}" placeholder="${meta.t==='number'?'0':'value'}">`;
+  }
+}
+
+function vrDelRule(id) {
+  const row = ge('vr-row-'+id);
+  if (row) row.remove();
+  if (!ge('vr-tbody').querySelector('tr')) {
+    const tr = document.createElement('tr');
+    tr.id = 'vr-empty-row';
+    tr.innerHTML = '<td colspan="4" class="vr-no-rules">No column rules — defaults apply</td>';
+    ge('vr-tbody').appendChild(tr);
+  }
+}
+
+function vrBuildConfig() {
+  const warnPct = parseFloat(ge('vr-null-warn').value) || 50;
+  const errPct  = parseFloat(ge('vr-null-error').value) || 90;
+  const rulesMap = {};
+  ge('vr-tbody').querySelectorAll('tr[id^="vr-row-"]').forEach(tr => {
+    const id = tr.id.replace('vr-row-','');
+    const col = (ge('vr-col-'+id)?.value||'').trim();
+    if (!col) return;
+    const type = ge('vr-type-'+id)?.value;
+    const valEl = ge('vr-val-'+id);
+    const val = valEl ? valEl.value.trim() : null;
+    if (!rulesMap[col]) rulesMap[col] = {name: col};
+    const r = rulesMap[col];
+    if (type === 'required')       r.required = true;
+    else if (type === 'max_null_rate' && val) r.max_null_rate = parseFloat(val)/100;
+    else if (type === 'expected_type' && val) r.expected_type = val;
+    else if (type === 'min_value' && val)     r.min_value = parseFloat(val);
+    else if (type === 'max_value' && val)     r.max_value = parseFloat(val);
+    else if (type === 'regex_pattern' && val) r.regex_pattern = val;
+    else if (type === 'allowed_values' && val) r.allowed_values = val.split(',').map(s=>s.trim()).filter(Boolean);
+  });
+  return {
+    null_warn_threshold: warnPct/100,
+    null_error_threshold: errPct/100,
+    business_rules: Object.values(rulesMap),
+  };
+}
+
+// ─────────────────────────────────── File info
+function stripQuotes(v) { return v.replace(/^["']+|["']+$/g,''); }
+function onPathBlur(s) {
+  const el=ge(`path-${s}`); let v=el.value.trim();
+  v=stripQuotes(v); el.value=v;
+  if(v) loadFileInfo(s,v,null);
+}
+function onPathKey(e,s) { if(e.key==='Enter') onPathBlur(s); }
+function onSheetChange(s) { const p=ge(`path-${s}`).value.trim(), sh=ge(`sheet-${s}`).value; if(p) loadFileInfo(s,p,sh||null); }
+
+async function loadFileInfo(slot, path, sheet) {
+  clearErr();
+  try {
+    const info = await apiPost('/api/file-info', {path, sheet_name: sheet});
+    S[slot] = info;
+    renderChip(slot, info);
+    renderMem(slot, info);
+    renderSheetPicker(slot, info);
+    checkRunnable();
+  } catch(e) {
+    S[slot] = null;
+    ge(`chip-${slot}`).style.display='none';
+    ge(`sheet-row-${slot}`).style.display='none';
+    ge(`mem-${slot}`).style.display='none';
+    showErr(`[${slot.toUpperCase()}] ${e.message}`);
+    checkRunnable();
+  }
+}
+
+function renderChip(s, info) {
+  const el = ge(`chip-${s}`);
+  const rows = info.row_count>0 ? fmtRows(info.row_count)+' rows' : '—';
+  el.innerHTML = `<strong>${esc(info.name)}</strong> &middot; ${rows} &middot; ${info.column_count} cols &middot; ${info.size_display}`;
+  el.style.display='block';
+}
+
+function renderMem(s, info) {
+  const el = ge(`mem-${s}`);
+  if (info.memory_status==='ok') { el.style.display='none'; return; }
+  el.textContent = info.memory_message || '';
+  el.className = 'mem-banner' + (info.memory_status==='warn' ? '' : ' lvl-err');
+  el.style.display='block';
+}
+
+function renderSheetPicker(s, info) {
+  const row = ge(`sheet-row-${s}`), sel = ge(`sheet-${s}`);
+  if (!info.sheet_names || info.sheet_names.length<=1) { row.style.display='none'; return; }
+  sel.innerHTML = info.sheet_names.map(n =>
+    `<option value="${ea(n)}" ${n===info.sheet_name?'selected':''}>${esc(n)}</option>`
+  ).join('');
+  row.style.display='flex';
+}
+
+function checkRunnable() {
+  const btn = ge('run-btn');
+  if (S.running) { btn.disabled=true; return; }
+  const ready = S.f1 && S.f2;
+  const blocked = S.f1?.memory_status==='block' || S.f2?.memory_status==='block';
+  btn.disabled = !ready || blocked;
+  if (blocked) ge('run-lbl').textContent = '⛔ File Too Large';
+  else ge('run-lbl').textContent = S.tab==='compare' ? '▶ Compare Files' : '▶ Validate Files';
+}
+
+// ─────────────────────────────────── Browse modal
+const BR_QA_ICONS = {project:'📌', downloads:'⬇', desktop:'🖥', documents:'📄'};
+
+function openBrowse(slot) {
+  S.browseTarget = slot;
+  ge('browse-bg').style.display='flex';
+  const cur = stripQuotes(ge(`path-${slot}`).value.trim());
+  const start = cur || S.lastBrowsePath || '';
+  browseDir(start);
+}
+function closeBrowse() { ge('browse-bg').style.display='none'; }
+function onBgClick(e) { if(e.target===ge('browse-bg')) closeBrowse(); }
+function brGoUp() { if(S.brParent) browseDir(S.brParent); }
+
+function _renderSidebar(quickAccess) {
+  const sb = ge('br-sidebar');
+  if (!quickAccess || !quickAccess.length) { sb.innerHTML=''; return; }
+  sb.innerHTML = '<div class="br-qa-hd">Quick Access</div>' +
+    quickAccess.map(q => {
+      const ico = BR_QA_ICONS[q.id] || '📁';
+      return `<div class="br-qa-item" id="qa-${q.id}" data-path="${esc(q.path)}" onclick="browseDir(this.dataset.path)" title="${esc(q.path)}">
+        <span class="br-qa-ico">${ico}</span><span>${esc(q.name)}</span></div>`;
+    }).join('');
+}
+
+function _updateQaActive(currentPath, quickAccess) {
+  if (!quickAccess) return;
+  quickAccess.forEach(q => {
+    const el = ge('qa-'+q.id);
+    if (el) el.classList.toggle('active', currentPath === q.path || currentPath.startsWith(q.path + '\\') || currentPath.startsWith(q.path + '/'));
+  });
+}
+
+async function browseDir(path) {
+  ge('br-addr').value = path || '';
+  ge('browse-entries').innerHTML = '<div class="br-load">Loading…</div>';
+  ge('br-statusbar').textContent = '';
+  try {
+    const d = await apiPost('/api/browse', {path});
+    S.lastBrowsePath = d.current_path;
+    S.brParent = d.parent_path || null;
+    ge('br-addr').value = d.current_path;
+    ge('br-back-btn').disabled = !S.brParent;
+
+    if (!ge('br-sidebar').children.length) _renderSidebar(d.quick_access);
+    _updateQaActive(d.current_path, d.quick_access);
+
+    const files = d.entries.filter(e=>e.type==='file');
+    const dirs  = d.entries.filter(e=>e.type==='dir');
+    const up    = d.entries.filter(e=>e.type==='up');
+
+    let html = '';
+    up.forEach(e => {
+      html += `<div class="br-item br-up" data-path="${esc(e.path)}" onclick="browseDir(this.dataset.path)">
+        <span class="br-ico">↑</span><span class="br-name" style="color:var(--mut)">.. (up one level)</span></div>`;
+    });
+    dirs.forEach(e => {
+      html += `<div class="br-item br-dir" data-path="${esc(e.path)}" onclick="browseDir(this.dataset.path)">
+        <span class="br-ico">📁</span><span class="br-name">${esc(e.name)}</span>
+        <span class="br-sz"></span></div>`;
+    });
+    files.forEach(e => {
+      const ext = e.name.split('.').pop().toLowerCase();
+      const ico = ext==='xlsx' ? '📊' : '📄';
+      html += `<div class="br-item br-file" data-path="${esc(e.path)}" onclick="selectFile(this.dataset.path)">
+        <span class="br-ico">${ico}</span><span class="br-name">${esc(e.name)}</span>
+        <span class="br-sz">${e.size_display||''}</span></div>`;
+    });
+
+    ge('browse-entries').innerHTML = html || '<div class="br-load">Empty directory</div>';
+
+    const dCount = dirs.length, fCount = files.length;
+    ge('br-statusbar').textContent =
+      [dCount && `${dCount} folder${dCount!==1?'s':''}`,
+       fCount && `${fCount} file${fCount!==1?'s':''}`].filter(Boolean).join('  ·  ') || 'Empty';
+  } catch(e) {
+    ge('browse-entries').innerHTML = `<div class="br-load" style="color:var(--red)">${esc(e.message)}</div>`;
+  }
+}
+
+function selectFile(path) {
+  ge(`path-${S.browseTarget}`).value = path;
+  closeBrowse();
+  loadFileInfo(S.browseTarget, path, null);
+}
+
+// ─────────────────────────────────── Run / Cancel
+async function startRun() {
+  clearErr();
+  if (!S.f1 || !S.f2) { showErr('Load both files first.'); return; }
+  S.running = true;
+  lockInputs(true);
+  ge('card-prog').style.display='block';
+  ge('card-res').style.display='none';
+  startTimer();
+
+  const raw = ge('key-cols').value.trim();
+  const keyCols = raw ? raw.split(',').map(s=>s.trim()).filter(Boolean) : null;
+
+  try {
+    let data;
+    if (S.tab==='compare') {
+      data = await apiPost('/api/compare', {
+        file1: ge('path-f1').value.trim(), file2: ge('path-f2').value.trim(),
+        sheet1: S.f1.sheet_name||null, sheet2: S.f2.sheet_name||null,
+        key_columns: keyCols,
+        ignore_case: ge('ign-case').checked, ignore_whitespace: ge('ign-ws').checked,
+      });
+    } else {
+      const vrCfg = vrBuildConfig();
+      data = await apiPost('/api/validate', {
+        file1: ge('path-f1').value.trim(), file2: ge('path-f2').value.trim(),
+        sheet1: S.f1.sheet_name||null, sheet2: S.f2.sheet_name||null,
+        key_columns: keyCols,
+        ...vrCfg,
+      });
+    }
+    S.jobId = data.job_id;
+    openSSE(data.job_id);
+  } catch(e) {
+    finishRun(); showErr(e.message);
+  }
+}
+
+function openSSE(jobId) {
+  if (S.sse) { S.sse.close(); S.sse=null; }
+  const sse = new EventSource(`/api/progress/${jobId}`);
+  S.sse = sse;
+  sse.onmessage = ev => {
+    try { handleSSE(JSON.parse(ev.data)); } catch {}
+  };
+  sse.onerror = () => {
+    if (S.running) { finishRun(); showErr('Connection lost. Check the server.'); }
+  };
+}
+
+function handleSSE(d) {
+  if (d.type==='progress') {
+    updateProg(d.phase, d.detail, d.current, d.total);
+  } else if (d.type==='complete') {
+    closeSSE(); finishRun(); renderResult(d.result); loadHistory();
+  } else if (d.type==='error') {
+    closeSSE(); finishRun(); showErr(d.message||'Unknown error.'); loadHistory();
+  } else if (d.type==='cancelled') {
+    closeSSE(); finishRun();
+    ge('card-prog').style.display='none';
+    loadHistory();
+  }
+}
+
+async function cancelRun() {
+  if (!S.jobId) return;
+  try { await apiPost('/api/cancel', {job_id: S.jobId}); } catch {}
+  closeSSE(); finishRun(); ge('card-prog').style.display='none';
+}
+
+function closeSSE() { if(S.sse){S.sse.close();S.sse=null;} }
+function finishRun() { S.running=false; stopTimer(); lockInputs(false); checkRunnable(); }
+
+function lockInputs(lock) {
+  ['path-f1','path-f2','sheet-f1','sheet-f2','key-cols','ign-case','ign-ws','br-btn-f1','br-btn-f2']
+    .forEach(id=>{ const el=ge(id); if(el) el.disabled=lock; });
+  ge('run-btn').disabled=lock;
+}
+
+// ─────────────────────────────────── Progress
+function updateProg(phase, detail, current, total) {
+  ge('prog-phase').textContent = phase||'…';
+  ge('prog-detail').textContent = detail||'';
+  const fill = ge('prog-fill');
+  if (total>0) {
+    const pct = Math.min(100, Math.round(current/total*100));
+    fill.classList.remove('indeterminate'); fill.style.width=pct+'%';
+    ge('prog-frac').textContent = `${current} / ${total}`;
+  } else {
+    fill.classList.add('indeterminate'); fill.style.width='';
+    ge('prog-frac').textContent='';
+  }
+}
+
+function startTimer() {
+  S.timerStart = Date.now();
+  ge('prog-timer').textContent='0s';
+  ge('prog-fill').classList.add('indeterminate'); ge('prog-fill').style.width='';
+  ge('prog-phase').textContent='Starting…'; ge('prog-detail').textContent=''; ge('prog-frac').textContent='';
+  S.timerIv = setInterval(()=>{
+    ge('prog-timer').textContent = fmtDur(Math.floor((Date.now()-S.timerStart)/1000));
+  }, 1000);
+}
+function stopTimer() { if(S.timerIv){clearInterval(S.timerIv);S.timerIv=null;} }
+
+// ─────────────────────────────────── Results
+function renderResult(result) {
+  S.result = result;
+  ge('card-prog').style.display='none';
+  ge('card-res').style.display='block';
+  renderMetricBar(result);
+  renderSchemaPanel(result.schema);
+  buildResultTabs(result);
+  ge('exp-btn').style.display = result.job_type==='compare' ? 'inline-block' : 'none';
+  const defaultTab = result.job_type==='compare' ? 'diff' : 'validation';
+  switchRT(defaultTab);
+}
+
+function renderMetricBar(r) {
+  const bar = ge('metric-bar');
+  let h = '';
+  const sc = r.schema?.compatibility_score;
+  if (sc!=null) {
+    const cls = sc>=90?'m-compat ok':sc>=70?'m-compat warn':'m-compat';
+    h += `<div class="metric ${cls}">COMPAT <strong>${sc.toFixed(0)}/100</strong></div>`;
+  }
+  if (r.diff) {
+    const d=r.diff;
+    h += `<div class="metric m-added">+${d.added_rows.toLocaleString()} ADDED</div>`;
+    h += `<div class="metric m-removed">−${d.removed_rows.toLocaleString()} REMOVED</div>`;
+    h += `<div class="metric m-modified">~ ${d.modified_rows.toLocaleString()} MODIFIED</div>`;
+    if (d.formatting_only_rows>0)
+      h += `<div class="metric m-fmt">${d.formatting_only_rows.toLocaleString()} FMT ONLY</div>`;
+    h += `<div class="metric m-fmt">${fmtRows(d.total_rows_f1)} ↔ ${fmtRows(d.total_rows_f2)} ROWS</div>`;
+  }
+  if (r.duration_s!=null)
+    h += `<div class="metric m-dur">${fmtDur(r.duration_s)}</div>`;
+  bar.innerHTML = h;
+}
+
+function renderSchemaPanel(schema) {
+  const p = ge('schema-panel');
+  if (!schema) { p.style.display='none'; return; }
+  const miss=schema.columns_only_in_f1||[], xtra=schema.columns_only_in_f2||[];
+  const ren=schema.renamed_candidates||[], reord=schema.reorder_detected;
+  if (!miss.length && !xtra.length && !ren.length && !reord) { p.style.display='none'; return; }
+  let h = '<div class="schema-panel">';
+  h += '<div class="schema-col"><h4>Missing from candidate</h4>';
+  h += miss.length ? miss.map(c=>`<span class="col-tag miss">${esc(c)}</span>`).join('') : '<span class="c-mut" style="font-size:11px">none</span>';
+  h += '</div><div class="schema-col"><h4>Extra in candidate</h4>';
+  h += xtra.length ? xtra.map(c=>`<span class="col-tag xtra">${esc(c)}</span>`).join('') : '<span class="c-mut" style="font-size:11px">none</span>';
+  h += '</div>';
+  if (reord) h += '<div class="schema-col" style="grid-column:1/-1"><h4 style="color:var(--yel)">⚠ Column order differs between files</h4></div>';
+  if (ren.length) {
+    h += '<div class="schema-col" style="grid-column:1/-1"><h4>Possible renames</h4>';
+    h += ren.map(([a,b,s])=>`<span class="col-tag rename">${esc(a)} → ${esc(b)} <em style="opacity:.7">${(s*100).toFixed(0)}%</em></span>`).join('');
+    h += '</div>';
+  }
+  h += '</div>';
+  p.innerHTML=h; p.style.display='block';
+}
+
+function buildResultTabs(result) {
+  const isCmp = result.job_type==='compare';
+  let h='';
+  if (isCmp) h+=`<button class="rtab" data-rt="diff" onclick="switchRT('diff')">Diff</button>`;
+  h+=`<button class="rtab" data-rt="validation" onclick="switchRT('validation')">Validation</button>`;
+  h+=`<button class="rtab" data-rt="profile" onclick="switchRT('profile')">Profile</button>`;
+  ge('result-tabs').innerHTML=h;
+  if (isCmp && result.diff) ge('rt-diff').innerHTML = buildDiffTab(result.diff);
+  ge('rt-validation').innerHTML = buildValidationTab(result.validation_f1, result.validation_f2);
+  ge('rt-profile').innerHTML = buildProfileTab(result.validation_f1, result.validation_f2);
+}
+
+function switchRT(tab) {
+  S.resultTab=tab;
+  document.querySelectorAll('.rtab').forEach(b=>b.classList.toggle('active', b.dataset.rt===tab));
+  ['diff','validation','profile'].forEach(t=>{
+    const el=ge(`rt-${t}`); if(el) el.style.display=t===tab?'block':'none';
+  });
+}
+
+// ─────────────────────────────────── Diff tab
+function buildDiffTab(diff) {
+  let h='';
+  const cols=Object.entries(diff.column_diffs||{});
+  if (cols.length) {
+    h+='<div class="sec-head">Column Change Summary</div>';
+    h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr>';
+    h+='<th>Column</th><th>Modified</th><th>Fmt-only</th><th>Change Rate</th>';
+    h+='</tr></thead><tbody>';
+    cols.sort((a,b)=>(b[1].modified+b[1].formatting_only)-(a[1].modified+a[1].formatting_only));
+    for (const [name,s] of cols) {
+      const r=(s.change_rate*100).toFixed(1);
+      const rc=s.change_rate>.1?'c-red':s.change_rate>.01?'c-yel':'c-grn';
+      h+=`<tr><td><strong>${esc(name)}</strong></td><td>${s.modified.toLocaleString()}</td>
+          <td class="c-mut">${s.formatting_only.toLocaleString()}</td>
+          <td class="${rc}">${r}%</td></tr>`;
+    }
+    h+='</tbody></table></div>';
+  }
+  const smp=diff.sample_diffs||[];
+  h+='<div class="sec-head mt8">Sample Row Diffs</div>';
+  if (!smp.length) return h+'<div class="no-data">No differences found.</div>';
+  h+=`<div class="tbl-wrap"><table class="dtbl"><thead><tr>
+      <th>Key (${(diff.key_columns||[]).join(', ')})</th><th>Type</th><th>Changes</th>
+      </tr></thead><tbody>`;
+  for (const row of smp) {
+    const rc={'added':'row-add','removed':'row-rem','modified':'row-mod','formatting_only':'row-fmt'}[row.change_type]||'';
+    const bc={'added':'b-add','removed':'b-rem','modified':'b-mod','formatting_only':'b-fmt'}[row.change_type]||'';
+    let detail='';
+    if (row.change_type==='modified' && row.columns_changed?.length) {
+      detail=row.columns_changed.map(c=>{
+        const v1=row.f1?.[c]??'∅', v2=row.f2?.[c]??'∅';
+        return `<span style="white-space:nowrap"><span class="c-mut">${esc(c)}:</span> `+
+          `<span class="val-old">${esc(trunc(String(v1),20))}</span>`+
+          `<span class="val-arr">→</span>`+
+          `<span class="val-new">${esc(trunc(String(v2),20))}</span></span>`;
+      }).join('  ');
+    } else if (row.change_type==='formatting_only' && row.columns_changed?.length) {
+      detail=`<span class="c-mut">${row.columns_changed.map(esc).join(', ')}</span>`;
+    } else if (row.change_type==='added')   detail='<span class="c-grn">new row</span>';
+    else if (row.change_type==='removed')   detail='<span class="c-red">deleted</span>';
+    h+=`<tr class="${rc}"><td title="${ea(row.key)}">${esc(trunc(row.key,30))}</td>
+        <td><span class="badge ${bc}">${row.change_type.replace('_',' ')}</span></td>
+        <td>${detail}</td></tr>`;
+  }
+  return h+'</tbody></table></div>';
+}
+
+// ─────────────────────────────────── Validation tab
+function buildValidationTab(r1, r2) {
+  let h='';
+  if (r1) { h+='<div class="sec-head">Reference File</div>'+buildChecks(r1.checks||[]); }
+  if (r2) { h+='<div class="sec-head mt8">Candidate File</div>'+buildChecks(r2.checks||[]); }
+  return h||'<div class="no-data">No validation data.</div>';
+}
+
+function buildChecks(checks) {
+  if (!checks.length) return '<div class="no-data">No checks.</div>';
+  const order=['CRITICAL','ERROR','WARNING','INFO'];
+  const grps={CRITICAL:[],ERROR:[],WARNING:[],INFO:[]};
+  for (const c of checks) (grps[c.severity]||grps.INFO).push(c);
+  return order.filter(s=>grps[s].length).map(sev=>{
+    const items=grps[sev];
+    const scls=sev.toLowerCase();
+    return `<div class="sev-sec">
+      <div class="sev-hd sev-${scls}" onclick="toggleSev(this)">
+        <span class="sev-arr">▶</span>
+        <span>${sev}</span>
+        <span class="sev-cnt">${items.length}</span>
+      </div>
+      <div class="sev-body">${items.map(c=>{
+        const meta=[c.column?`col: ${c.column}`:'', c.affected_count!=null?`${c.affected_count.toLocaleString()} rows`:''].filter(Boolean).join(' · ');
+        return `<div class="chk-item"><div class="chk-msg">${esc(c.name)}: ${esc(c.message)}</div>
+          ${meta?`<div class="chk-meta">${esc(meta)}</div>`:''}</div>`;
+      }).join('')}</div></div>`;
+  }).join('');
+}
+
+function toggleSev(hd) {
+  const body=hd.nextElementSibling, arr=hd.querySelector('.sev-arr');
+  const open=body.classList.toggle('open');
+  arr.classList.toggle('open',open);
+}
+
+// ─────────────────────────────────── Profile tab
+function buildProfileTab(r1, r2) {
+  let h='';
+  if (r1) { h+='<div class="sec-head">Reference File — Column Profile</div>'+buildProfileTable(r1.profile?.columns||[]); }
+  if (r2) { h+='<div class="sec-head mt8">Candidate File — Column Profile</div>'+buildProfileTable(r2.profile?.columns||[]); }
+  return h||'<div class="no-data">No profile data.</div>';
+}
+
+function buildProfileTable(cols) {
+  if (!cols.length) return '<div class="no-data">No columns.</div>';
+  let h='<div class="tbl-wrap"><table class="dtbl"><thead><tr>';
+  h+='<th>Column</th><th>Type</th><th>Null %</th><th>Nulls</th><th>Distinct</th><th>Min</th><th>Max</th><th>Samples</th>';
+  h+='</tr></thead><tbody>';
+  for (const col of cols) {
+    const pct=(col.null_variant_rate*100).toFixed(1);
+    const hi=col.null_variant_rate>.5?'hi':'';
+    const fillW=Math.min(100,col.null_variant_rate*100).toFixed(1);
+    const samples=(col.sample_values||[]).slice(0,3).map(v=>esc(String(v))).join(', ');
+    h+=`<tr>
+      <td><strong>${esc(col.name)}</strong></td>
+      <td class="c-mut">${esc(col.inferred_type||'—')}</td>
+      <td><div class="null-wrap"><div class="null-bar"><div class="null-fill ${hi}" style="width:${fillW}%"></div></div><span>${pct}%</span></div></td>
+      <td class="c-mut">${(col.total_null_variants||0).toLocaleString()}</td>
+      <td class="c-mut">${(col.distinct_count||0).toLocaleString()}</td>
+      <td class="c-mut" title="${ea(col.min_value||'')}">${esc(trunc(col.min_value,14))}</td>
+      <td class="c-mut" title="${ea(col.max_value||'')}">${esc(trunc(col.max_value,14))}</td>
+      <td class="c-mut" title="${ea(samples)}">${esc(trunc(samples,32))}</td>
+    </tr>`;
+  }
+  return h+'</tbody></table></div>';
+}
+
+// ─────────────────────────────────── History
+async function loadHistory() {
+  try { const d=await apiGet('/api/history'); renderHistory(d.runs||[]); } catch {}
+}
+
+function renderHistory(runs) {
+  histRuns=runs;
+  const list=ge('hist-list');
+  const clearBtn=ge('hist-clear-btn');
+  if (!runs.length) {
+    list.innerHTML='<div class="hist-empty">No history yet</div>';
+    if(clearBtn) clearBtn.style.display='none';
+    return;
+  }
+  if(clearBtn) clearBtn.style.display='';
+  list.innerHTML=runs.map((r,i)=>{
+    const tc=r.run_type==='compare'?'b-cmp':'b-val';
+    const sc={complete:'b-ok',error:'b-err',cancelled:'b-canc'}[r.status]||'b-fmt';
+    const f1=r.file1.split(/[/\\]/).pop(), f2=r.file2.split(/[/\\]/).pop();
+    const when=ago(r.started_at), dur=fmtDur(r.duration_s);
+    let sum='';
+    if (r.run_type==='compare'&&r.summary) {
+      const s=r.summary;
+      sum=`+${s.added??0} / −${s.removed??0} / ~${s.modified??0}`;
+      if (s.compatibility_score!=null) sum+=` · ${s.compatibility_score.toFixed(0)}/100`;
+    } else if (r.summary?.compatibility_score!=null) {
+      sum=`compat ${r.summary.compatibility_score.toFixed(0)}/100`;
+    }
+    return `<div class="hist-item" onclick="showHistRun(${i})">
+      <button class="hist-del" onclick="deleteHistRun(event,'${ea(r.job_id)}')" title="Delete this entry">✕</button>
+      <div class="hist-r1">
+        <span class="badge ${tc}">${r.run_type}</span>
+        <span class="badge ${sc}">${r.status}</span>
+        <span class="hist-sum" style="margin-left:auto">${when} · ${dur}</span>
+      </div>
+      <div class="hist-files" title="${ea(r.file1)} → ${ea(r.file2)}">${esc(f1)} → ${esc(f2)}</div>
+      ${sum?`<div class="hist-sum">${esc(sum)}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+async function deleteHistRun(e, jobId) {
+  e.stopPropagation();
+  try {
+    await fetch(`/api/history/${encodeURIComponent(jobId)}`, {method:'DELETE'});
+    loadHistory();
+  } catch {}
+}
+
+async function clearAllHistory() {
+  if (!confirm('Delete all history entries?')) return;
+  try {
+    await fetch('/api/history', {method:'DELETE'});
+    loadHistory();
+  } catch {}
+}
+
+function toggleSidebar() {
+  const layout = document.querySelector('.layout');
+  const collapsed = layout.classList.toggle('sidebar-collapsed');
+  localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+}
+
+(function initSidebar(){
+  document.addEventListener('DOMContentLoaded', () => {
+    if (localStorage.getItem('sidebarCollapsed') === '1')
+      document.querySelector('.layout').classList.add('sidebar-collapsed');
+  });
+})();
+
+function showHistRun(i) {
+  const run=histRuns[i]; if(!run) return;
+  const s=run.summary||{};
+  const fake={
+    job_type:run.run_type, duration_s:run.duration_s,
+    schema:{compatibility_score:s.compatibility_score??null},
+    diff:run.run_type==='compare'?{
+      added_rows:s.added??0,removed_rows:s.removed??0,
+      modified_rows:s.modified??0,formatting_only_rows:s.formatting_only??0,
+      total_rows_f1:0,total_rows_f2:0,key_columns:[],column_diffs:{},sample_diffs:[]
+    }:null,
+    validation_f1:null,validation_f2:null,
+  };
+  clearErr();
+  ge('card-res').style.display='block';
+  renderMetricBar(fake);
+  renderSchemaPanel(fake.schema);
+  ge('result-tabs').innerHTML='';
+  ge('rt-diff').innerHTML='<div class="no-data">Re-run comparison to see full results.</div>';
+  ge('rt-diff').style.display='block';
+  ge('rt-validation').style.display='none';
+  ge('rt-profile').style.display='none';
+  ge('exp-btn').style.display='none';
+}
+
+// ─────────────────────────────────── Export
+function exportCSV() {
+  const a=document.createElement('a'); a.href='/api/export-csv'; a.download='';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// ─────────────────────────────────── Errors
+function showErr(msg) { const el=ge('err-banner'); el.textContent='⚠ '+msg; el.style.display='block'; }
+function clearErr()   { ge('err-banner').style.display='none'; }
+
+// ─────────────────────────────────── Utils
+function ge(id) { return document.getElementById(id); }
+function esc(s) { if(s==null)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function ea(s)  { if(s==null)return''; return String(s).replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
+function trunc(s,n) { if(!s)return'—'; s=String(s); return s.length>n?s.slice(0,n)+'…':s; }
+function fmtRows(n) { if(!n)return'0'; if(n>=1e6)return(n/1e6).toFixed(1)+'M'; if(n>=1e3)return(n/1e3).toFixed(1)+'K'; return n.toLocaleString(); }
+function fmtDur(s)  { s=Math.round(s||0); if(s<60)return s+'s'; return Math.floor(s/60)+'m '+(s%60)+'s'; }
+function ago(ts)    { const d=Math.floor(Date.now()/1000-ts); if(d<60)return'just now'; if(d<3600)return Math.floor(d/60)+'m ago'; if(d<86400)return Math.floor(d/3600)+'h ago'; return Math.floor(d/86400)+'d ago'; }
+
+// ─────────────────────────────────── Init
+document.addEventListener('DOMContentLoaded', () => { loadHistory(); });
+</script>
+</body>
+</html>

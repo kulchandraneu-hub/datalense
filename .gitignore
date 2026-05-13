@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Runtime / generated
+history.db
+exports/
+
+# Scattered exports written before exports/ folder existed
+diff_*.csv
+diff_*.json
+diff_*.xlsx
+report_*.html
+
+# Test / sample data files
+csv_compare_test_file_*.csv
+
+# Claude Code internal
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
