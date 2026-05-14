@@ -55,7 +55,7 @@ def load_metadata(
         path,
         encoding=_polars_encoding(encoding_result.encoding),
         separator=delimiter,
-        infer_schema_length=1000,
+        infer_schema_length=10_000,
         ignore_errors=True,
     )
     collected_schema = lf.collect_schema()

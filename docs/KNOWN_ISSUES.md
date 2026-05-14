@@ -1,6 +1,6 @@
 # Known Issues — DataLens
 
-_Last updated: 2026-05-14 (P1-T1 + P1-T2 + P1-T6 + P1-T7 + P1-T3 applied)_
+_Last updated: 2026-05-14 (P1-T1 + P1-T2 + P1-T6 + P1-T7 + P1-T3 + P1-T8 applied)_
 _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 
 ---
@@ -69,11 +69,11 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 - **Fix target:** Phase 1, alongside P1-T1.
 
 ### KI-008 — `infer_schema_length=1000` causes type mis-inference for mixed-format columns
-- **Status:** Unfixed
-- **Files:** `compare.py:207–214`, `metadata.py:54–58`
-- **Impact:** Polars infers Salary as `Int64` in file A (integer format) and `Float64` in file B (float format). When cast to string: `50000` ≠ `50000.0`. Equal salary values appear as "modified" (false positive).
-- **Fix:** P1-T8 — Raise `infer_schema_length` to at minimum 10,000.
-- **Fix target:** Phase 1, step 6.
+- **Status:** FIXED (P1-T8, 2026-05-14)
+- **Files:** `compare.py:_load_lazy_frame()`, `metadata.py:load_metadata()`
+- **Fix applied:** `infer_schema_length` raised from `1000` to `10_000` in both call sites. Schema inference now reads 10× more rows before locking in column types, reducing the chance of inferring the wrong type for a column whose mixed-format values appear after the first 1000 rows.
+- **Benchmark (100k):** Schema inference unchanged for benchmark files (mixed content already appears within first 1000 rows). No regression on any passing assertion. Elapsed time unchanged (~18s).
+- **Defensive value:** For real-world files where format variation appears late (e.g., row 2000+ of a 5 GB CSV), this prevents silent type lock-in and subsequent coercion or error.
 
 ### KI-009 — Excel diff export shows only f1 (old) values for modified rows
 - **Status:** Unfixed
@@ -125,13 +125,18 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 
 ---
 
-### KI-016 — `modified_rows` under-counts by ~4,437 due to cross-type column comparison
-- **Status:** Unfixed — introduced during P1-T1 investigation
+### KI-016 — `modified_rows` under-counts by ~4,437 in 500k benchmark (root cause under investigation)
+- **Status:** Unfixed — original diagnosis was incorrect (updated 2026-05-14, P1-T8)
 - **File:** `differ.py` (`any_sem_diff` expression)
 - **Severity:** MEDIUM
-- **Impact:** Benchmark shows `modified_rows = 45,563` vs expected `50,000`. Gap = 4,437 rows. Root cause: when file A infers JoinDate (or similar column) as `Date` and file B infers it as `Utf8` (because of mixed ISO/US formats), `pl.col("{c}_f1") != pl.col("{c}_f2")` produces `null` (not True) when comparing `Date` vs `Utf8`. `pl.any_horizontal` treats `null` as False, so those rows slip to `same_or_fmt` → `formatting_only` even though JoinDate actually changed.
-- **Fix:** P1-T8 — Raise `infer_schema_length` to 10,000. With more rows, both files will infer JoinDate as Utf8 consistently, making the comparison work correctly. Alternatively, `schema_overrides` to force Utf8 for ambiguous columns.
-- **Fix target:** Phase 1, step 6 (P1-T8).
+- **Impact:** 500k benchmark shows `modified_rows = 45,563` vs expected `50,000`. Gap = 4,437 rows.
+- **Original (incorrect) diagnosis:** "JoinDate cross-type comparison — file A infers `Date`, file B infers `Utf8`; `Date != Utf8` returns null → rows slip to `same_or_fmt`."
+- **Why the original diagnosis is wrong (confirmed during P1-T8):**
+  1. Both 500k files already infer JoinDate as `String` (Utf8) at `infer_schema_length=1000` — the mixed US-format dates appear early enough that Polars falls back to String before reading 1000 rows. No type mismatch exists.
+  2. `Date != String` in this version of Polars does NOT return null — it raises `InvalidOperationError`. That would trigger the graceful-degradation path in `diff_files()` and return all-zero counts, not a partial 4,437-row gap.
+  3. P1-T8 (raising to `infer_schema_length=10_000`) produced zero change in schema inference and zero change in benchmark counts — confirming the type inference path is not involved.
+- **Revised status:** True root cause of the 4,437 gap is TBD. Requires targeted investigation: running the 500k diff and inspecting which specific rows are classified as `same_or_fmt` or `formatting_only` when they should be `modified`. Likely candidates: overlap between null-injection rows and semantic-change rows being double-counted or under-counted, or rows where the `any_sem_diff` expression returns null for a subtle reason not yet identified.
+- **Fix target:** Requires dedicated investigation; not addressed by P1-T8 or P1-T4. Add as a separate task after P1-T4 completes.
 
 ### KI-017 — Two full-file join scans now run per compare (performance regression from P1-T1)
 - **Status:** Known trade-off — acceptable until Phase 3
@@ -157,4 +162,5 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 ### KI-002 — No full-file count path → PARTIALLY FIXED (P1-T1, counts done; export still P3-T5)
 ### KI-003 — Added/removed null misclassification → FIXED (P1-T2, 2026-05-14)
 ### KI-004 — `_infer_type()` always returns "string" → FIXED (P1-T3, 2026-05-14)
+### KI-008 — `infer_schema_length=1000` causes type mis-inference → FIXED (P1-T8, 2026-05-14)
 ### KI-010 — No `is_full_count` field → FIXED (P1-T5 implemented alongside P1-T1/T2, 2026-05-14)

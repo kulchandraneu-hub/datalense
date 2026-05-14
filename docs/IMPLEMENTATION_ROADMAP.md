@@ -1,6 +1,6 @@
 # Implementation Roadmap — DataLens
 
-_Created: 2026-05-14. Last updated: 2026-05-14 (Phase 1 Step 4 — P1-T3 complete)._
+_Created: 2026-05-14. Last updated: 2026-05-14 (Phase 1 Step 5 — P1-T8 complete)._
 
 ---
 
@@ -70,10 +70,13 @@ _Created: 2026-05-14. Last updated: 2026-05-14 (Phase 1 Step 4 — P1-T3 complet
   - Step 8 (`validate_two_files`) now receives `key_columns` so "Duplicate Keys" and "Key Column Nulls" warnings appear in the ValidationReport.
 - **Benchmark result (100k):** `added=1000 ✓`, `removed=2000 ✓`, `is_full_count=False ✓` (correct — File B has 100 duplicate CustomerID rows), `modified=19580` (expected FAIL — same gap as before, from whitespace/case/date changes without ignore rules + 100 Cartesian duplicate rows).
 
-### P1-T8: Raise `infer_schema_length` `[ ]`
-- **Files:** `compare.py:207–214`, `metadata.py:54–58`
-- **Problem:** Type inference from 1000 rows mis-identifies mixed-format columns (Salary int vs float, JoinDate ISO vs US).
-- **Fix:** Raise to `infer_schema_length=10_000` minimum. Consider `schema_overrides` support via API for user-supplied schemas.
+### P1-T8: Raise `infer_schema_length` `[x]`
+- **Files:** `compare.py:_load_lazy_frame()`, `metadata.py:load_metadata()`
+- **Completed:** 2026-05-14
+- **Fix applied:** `infer_schema_length` raised from `1000` to `10_000` in both call sites. Both `metadata.py` (schema metadata collection) and `compare.py` (LazyFrame construction for diff) now use the same value, so schema inference is consistent between the two paths.
+- **Benchmark impact (100k):** Schema inference for all columns is unchanged — both benchmark files already expose mixed-format content (date formats, Salary float suffix) within the first 1000 rows, so Polars already inferred the correct types. All 4 hard assertions still pass; elapsed time unchanged (17.9s vs 17.7s — within noise).
+- **Defensive value:** For real-world files where mixed-format content appears later in the file (e.g., a 5 GB CSV where US-format dates start at row 2000), `infer_schema_length=10_000` prevents Polars from locking in the wrong type and silently coercing or erroring on the tail of the file.
+- **KI-016 status:** Gap of 4,437 in 500k `modified_rows` (45,563 vs 50,000) does **NOT** close with this change. See KI-016 updated diagnosis.
 
 ---
 
@@ -164,11 +167,13 @@ Execute in this exact sequence to avoid rework:
 2. P1-T6          [x] DONE 2026-05-14 — remove duplicate profiling (4 passes → 2)
 3. P1-T7          [x] DONE 2026-05-14 — full-file key validation before diff; is_full_count=False on duplicate keys
 4. P1-T3          [x] DONE 2026-05-14 — priority-based _infer_type; Mixed Types check unblocked
-5. P1-T8          [ ] raise infer_schema_length — closes KI-016 (modified count gap)
+5. P1-T8          [x] DONE 2026-05-14 — raise infer_schema_length to 10,000 (defensive; KI-016 gap persists — different root cause)
 6. P1-T4          [ ] fix Excel export — isolated, no dependencies
 ```
 
 Run benchmark assertions after step 5 (P1-T8) and again after step 6 (P1-T4).
+
+**Note (2026-05-14):** KI-016 (modified_rows gap of 4,437 in 500k) was originally attributed to JoinDate cross-type comparison (Date vs String). Investigation during P1-T8 showed this is incorrect: both 500k files already infer JoinDate as String at 1000 rows, and `Date != String` raises `InvalidOperationError` in Polars (not null propagation) — which would cause complete graceful degradation, not a partial miss. True root cause of the gap is TBD and requires targeted investigation.
 
 ---
 

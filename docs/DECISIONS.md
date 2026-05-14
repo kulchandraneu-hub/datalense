@@ -111,15 +111,17 @@ _Format: date, decision, rationale, alternatives considered._
 ---
 
 ### D-009 — `infer_schema_length` raised from 1000 to 10,000
-- **Date:** 2026-05-14 (planned, not yet implemented)
-- **Status:** Pending (Phase 1, step 6)
-- **Decision:** Raise `infer_schema_length` from 1000 to 10,000 in both `metadata.py` and `compare.py:_load_lazy_frame()`.
-- **Rationale:** The benchmark files have mixed formats (Salary int vs float, JoinDate ISO vs US). With 1000-row inference, the type may be inferred from a uniform section of the file, leading to parse errors or incorrect comparisons for later rows.
+- **Date:** 2026-05-14
+- **Status:** IMPLEMENTED (P1-T8, 2026-05-14)
+- **Decision:** Raise `infer_schema_length` from `1000` to `10_000` in both `metadata.py:load_metadata()` and `compare.py:_load_lazy_frame()`. Both call sites use the same value so schema inference is consistent between the metadata pass and the diff pass.
+- **Rationale:** Files where mixed-format content (e.g. US-format dates, float-suffix integers) appears after row 1000 would be silently mis-typed and cause incorrect comparisons or coercion errors. 10,000 rows provides a 10× larger sample with negligible overhead.
+- **Actual benchmark impact:** For the current benchmark files, mixed content appears within the first 1000 rows already, so schema inference is unchanged at 10,000 rows. The fix is defensive for real-world production files.
 - **Alternatives considered:**
   - `infer_schema_length=0` (scan all rows): correct but slow for 500k+ files.
   - User-supplied `schema_overrides`: ideal for production; deferred to Phase 3.
-  - Keep 1000 and add schema_overrides API param: the right long-term answer, but 10,000 is a safe interim fix.
-- **Trade-off:** 10× more rows read during schema inference. For 500k-row, 14-column files, this is ~140k cell reads — negligible compared to profiling cost.
+  - Keep 1000 and add schema_overrides API param: the right long-term answer; 10,000 is a safe interim.
+- **Trade-off:** 10× more rows read during schema inference. For 500k-row, 14-column files, this is ~140k cell reads — negligible compared to profiling and join cost.
+- **KI-016 finding:** Investigation during P1-T8 confirmed that `Date != String` in this Polars version raises `InvalidOperationError` (not null propagation). This means the original KI-016 scenario (cross-type comparison returning null → rows slipping to same_or_fmt) cannot produce a partial 4,437-row gap — it would cause complete graceful degradation (all-zero counts). The 4,437-row gap has a different, as-yet-unknown root cause.
 
 ---
 

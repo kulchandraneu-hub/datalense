@@ -237,7 +237,7 @@ def _load_lazy_frame(path: Path, metadata: FileMetadata, temp_files: list[Path])
         path,
         encoding=_polars_encoding(metadata.encoding.encoding),
         separator=metadata.delimiter,
-        infer_schema_length=1000,
+        infer_schema_length=10_000,
         ignore_errors=True,
     )
 
