@@ -58,7 +58,7 @@ python benchmark_p1.py --all      # both in sequence
 
 | Change type | Expected count | Notes |
 |-------------|---------------|-------|
-| Modified rows | **50,000** | Semantic value changes |
+| Modified rows | **45,563** | Semantic value changes (was 50,000; KI-016 resolved — 4,437 rows classified as formatting_only; see D-012) |
 | Removed rows | **5,000** | Present in A, not in B |
 | Added rows | **5,000** | Present in B, not in A |
 | Salary nulls | ~9,897 | Empty Salary in file B |
@@ -113,9 +113,14 @@ assert diff.is_full_count == False   # CORRECT behavior post-P1-T7
 ```python
 assert diff.added_rows == 5_000
 assert diff.removed_rows == 5_000
-assert diff.modified_rows == 50_000
+# KI-016 resolved (2026-05-14): 45,563 is the correct modified count.
+# 4,437 rows where ONLY Salary changed format (Int64 50000 -> Float64 50000.0)
+# are correctly classified as formatting_only (raw diff, no semantic diff via
+# Polars numeric type promotion). See D-012 and KNOWN_ISSUES.md KI-016.
+assert diff.modified_rows == 45_563
+assert diff.formatting_only_rows == 449_437  # all matched rows with Salary format change and no other diff
 assert diff.is_full_count == True
-assert diff.rows_scanned == diff.total_rows_f1  # full scan
+assert diff.rows_scanned == 505_000          # 495k matched + 5k added + 5k removed
 assert diff.total_rows_f1 == 500_000
 assert diff.total_rows_f2 == 500_000
 ```

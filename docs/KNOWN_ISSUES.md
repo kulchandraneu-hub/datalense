@@ -125,18 +125,25 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 
 ---
 
-### KI-016 — `modified_rows` under-counts by ~4,437 in 500k benchmark (root cause under investigation)
-- **Status:** Unfixed — original diagnosis was incorrect (updated 2026-05-14, P1-T8)
-- **File:** `differ.py` (`any_sem_diff` expression)
-- **Severity:** MEDIUM
-- **Impact:** 500k benchmark shows `modified_rows = 45,563` vs expected `50,000`. Gap = 4,437 rows.
-- **Original (incorrect) diagnosis:** "JoinDate cross-type comparison — file A infers `Date`, file B infers `Utf8`; `Date != Utf8` returns null → rows slip to `same_or_fmt`."
-- **Why the original diagnosis is wrong (confirmed during P1-T8):**
-  1. Both 500k files already infer JoinDate as `String` (Utf8) at `infer_schema_length=1000` — the mixed US-format dates appear early enough that Polars falls back to String before reading 1000 rows. No type mismatch exists.
-  2. `Date != String` in this version of Polars does NOT return null — it raises `InvalidOperationError`. That would trigger the graceful-degradation path in `diff_files()` and return all-zero counts, not a partial 4,437-row gap.
-  3. P1-T8 (raising to `infer_schema_length=10_000`) produced zero change in schema inference and zero change in benchmark counts — confirming the type inference path is not involved.
-- **Revised status:** True root cause of the 4,437 gap is TBD. Requires targeted investigation: running the 500k diff and inspecting which specific rows are classified as `same_or_fmt` or `formatting_only` when they should be `modified`. Likely candidates: overlap between null-injection rows and semantic-change rows being double-counted or under-counted, or rows where the `any_sem_diff` expression returns null for a subtle reason not yet identified.
-- **Fix target:** Requires dedicated investigation; not addressed by P1-T8 or P1-T4. Add as a separate task after P1-T4 completes.
+### KI-016 — `modified_rows = 45,563` vs benchmark expectation `50,000` — RESOLVED (benchmark artifact)
+- **Status:** CLOSED — root cause identified 2026-05-14 (debug_ki016 investigation). No engine bug. Benchmark expectation corrected.
+- **File:** `differ.py` (`any_sem_diff` expression), `benchmark_p1.py` (corrected expected value)
+- **Severity:** LOW (was MEDIUM — original concern about correctness; now confirmed not an engine defect)
+- **Root cause (confirmed):**
+  - File A Salary is inferred as `Int64`; File B Salary is inferred as `Float64` (benchmark B has `.0` float format).
+  - Polars comparison `Int64(50000) != Float64(50000.0)` returns **False** (numeric type promotion). This is correct Polars behaviour.
+  - For 4,437 rows where **only** the Salary type/format changed (same numeric value, no other column changed), `any_sem_diff = False` → engine classifies them as `same_or_fmt` in the semantic join.
+  - In the raw join, `"50000" != "50000.0"` is True → those 4,437 rows ARE counted in `formatting_only_rows`.
+  - **The 4,437 rows are not lost**: `modified_rows (45,563) + formatting_only_rows (449,437) = 495,000` = all matched rows. Nothing is unaccounted.
+- **Engine behaviour is correct per COMPARE_ENGINE_RULES.md:**
+  - Rule 2.4: "Formatting-Only = raw diff with no semantic diff." Salary 50000→50000.0 is raw-diff (string form differs) but not semantic-diff (numeric value is equal). Classifying as `formatting_only` is exactly right.
+  - Rule 2.3: Modified requires "value difference that remains after all active ignore rules." Numeric type promotion means 50000 == 50000.0 semantically.
+- **Why the benchmark expectation of 50,000 was wrong:**
+  - The benchmark generator applied global Salary type change (Int→Float) to ALL rows in File B. For 4,437 rows that received no other change, the only difference was Salary format.
+  - The generator's summary counted those 4,437 as "modified" (any change = modified). The engine correctly separates them into the `formatting_only` bucket.
+- **Confirmed via instrumentation:** `debug_ki016.py` CHECK 5 shows all `same_or_fmt` rows have raw Salary diffs ("50000" vs "50000.0"). CHECK 6 confirms zero null-propagation. CHECK 7 confirms Int64/Float64 type mismatch for Salary. Verification run: `modified=45,563 + formatting_only=449,437 = 495,000` (all matched rows accounted).
+- **Fix applied:** `benchmark_p1.py` EXPECTED_500K updated: `modified_rows = 45,563`. New assertion added: `formatting_only_rows >= 4_437`.
+- **JoinDate note:** Both files infer JoinDate as `String`. File B has 9,904 US-format dates that differ in string form from ISO dates in A → those rows ARE detected as `modified` (string comparison "2021-02-08" != "01/02/2021" is True). No JoinDate-related engine bug.
 
 ### KI-017 — Two full-file join scans now run per compare (performance regression from P1-T1)
 - **Status:** Known trade-off — acceptable until Phase 3

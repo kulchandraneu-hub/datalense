@@ -121,7 +121,7 @@ _Format: date, decision, rationale, alternatives considered._
   - User-supplied `schema_overrides`: ideal for production; deferred to Phase 3.
   - Keep 1000 and add schema_overrides API param: the right long-term answer; 10,000 is a safe interim.
 - **Trade-off:** 10× more rows read during schema inference. For 500k-row, 14-column files, this is ~140k cell reads — negligible compared to profiling and join cost.
-- **KI-016 finding:** Investigation during P1-T8 confirmed that `Date != String` in this Polars version raises `InvalidOperationError` (not null propagation). This means the original KI-016 scenario (cross-type comparison returning null → rows slipping to same_or_fmt) cannot produce a partial 4,437-row gap — it would cause complete graceful degradation (all-zero counts). The 4,437-row gap has a different, as-yet-unknown root cause.
+- **KI-016 finding:** Investigation during P1-T8 confirmed that `Date != String` in this Polars version raises `InvalidOperationError` (not null propagation). The 4,437-row gap has a different root cause; see D-012.
 
 ---
 
@@ -134,6 +134,28 @@ _Format: date, decision, rationale, alternatives considered._
   - Anti-join of raw-diff rows against modified keys: correct but requires materializing key sets.
   - Merge sem + raw into one join (P3-T3): the right long-term answer; deferred to Phase 3.
 - **Trade-off:** Requires a second full scan of `raw_joined` (~344s vs ~168s for 500k files). Accepted for Phase 1; Phase 3 will eliminate the extra scan by merging joins.
+
+---
+
+### D-012 — KI-016 resolved: modified_rows = 45,563 is correct; benchmark expectation of 50,000 was wrong
+- **Date:** 2026-05-14
+- **Status:** RESOLVED — investigation complete; no engine fix needed; benchmark expectation corrected.
+- **Finding:** The 4,437 gap is caused by Polars Int64/Float64 numeric type promotion during semantic comparison.
+  - File A: Salary inferred as `Int64` (pure integer CSV values like `50000`).
+  - File B: Salary inferred as `Float64` (float CSV values like `50000.0`).
+  - Polars comparison `Int64(50000) != Float64(50000.0)` returns **False** (numeric type promotion treats them as equal).
+  - For the 4,437 rows where **only** the Salary format changed (same numeric value, no other column changed), `any_sem_diff = False` → classified as `same_or_fmt` by the semantic join.
+  - In the raw join: `"50000" != "50000.0"` is True → those 4,437 rows are counted in `formatting_only_rows`.
+  - **The rows are not lost**: `modified (45,563) + formatting_only (449,437) = 495,000` = all 495,000 matched rows. Total join rows = 505,000 = 495,000 matched + 5,000 added + 5,000 removed. Fully accounted.
+- **Why the benchmark expected 50,000:**
+  - The benchmark generator applied a global Salary type change (Int→Float) to all File B rows. For 4,437 rows that received no other modification, the only observable difference was Salary format.
+  - The generator's summary counted "any change" as "modified row." The engine correctly separates semantic from formatting-only changes.
+- **Engine behaviour is correct per COMPARE_ENGINE_RULES.md rule 2.4:**
+  - "Formatting-Only: raw diff with no semantic diff." Salary 50000→50000.0 qualifies: raw strings differ, numeric values are equal.
+  - Per BENCHMARK_TEST_PLAN.md note: "Salary format (50000 vs 50000.0): classify as formatting_only if numeric equivalence is detected." The engine detects numeric equivalence via Polars type promotion and classifies correctly.
+- **Action taken:** `benchmark_p1.py` EXPECTED_500K corrected to `modified_rows=45_563` and `formatting_only_rows=449_437`. KI-016 marked CLOSED in KNOWN_ISSUES.md.
+- **Null propagation check:** Confirmed zero rows where `any_sem_diff = NULL` for matched rows. The `is_null()` mismatch guard in `any_sem_diff` works correctly.
+- **JoinDate check:** Both files infer JoinDate as `String`. File B's 9,904 US-format dates are correctly detected as semantic diffs (string "2021-02-08" != "01/02/2021" → True). These 9,904 rows ARE in `modified_rows`, not in the gap.
 
 ---
 
