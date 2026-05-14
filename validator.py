@@ -261,15 +261,21 @@ def _check_type_consistency(profile: FileProfile) -> list[ValidationCheck]:
     for col in profile.columns:
         if not col.type_distribution:
             continue
-        max_pct = max(col.type_distribution.values())
-        if max_pct < 0.95 and col.invalid_parse_count > 0:
+        # Fire when the column has a specific dominant type (not pure string) but
+        # some rows fail to parse as that type. The old max_pct < 0.95 guard
+        # suppressed warnings for columns with 1–5% mixed content (e.g. JoinDate
+        # with mixed ISO+US date formats). Now any invalid parses trigger the check;
+        # affected_count tells the user how many rows are affected.
+        dominant_pct = col.type_distribution.get(col.inferred_type, 0.0)
+        if col.inferred_type != "string" and col.invalid_parse_count > 0:
             checks.append(ValidationCheck(
                 name="Mixed Types",
                 severity="WARNING",
                 passed=False,
                 message=(
                     f"Column '{col.name}' has mixed types "
-                    f"({max_pct * 100:.0f}% {col.inferred_type})"
+                    f"({dominant_pct * 100:.0f}% {col.inferred_type}, "
+                    f"{col.invalid_parse_count} rows do not parse as {col.inferred_type})"
                 ),
                 column=col.name,
                 affected_count=col.invalid_parse_count,

@@ -71,7 +71,7 @@ EXPECTED_500K = {
 # Runner
 # ---------------------------------------------------------------------------
 
-def run_benchmark(label: str, file_a: Path, file_b: Path, expected: dict, key_columns: list) -> dict:
+def run_benchmark(label: str, file_a: Path, file_b: Path, expected: dict, key_columns: list) -> tuple:
     print(f"\n{'='*62}")
     print(f"  {label}")
     print(f"{'='*62}")
@@ -139,7 +139,20 @@ def run_benchmark(label: str, file_a: Path, file_b: Path, expected: dict, key_co
     else:
         print(f"  ALL ASSERTIONS PASSED")
 
-    return actual
+    return actual, result
+
+
+def check_p1t3_mixed_types(result, date_col: str) -> bool:
+    """P1-T3: verify that date_col in file 2 is flagged as Mixed Types."""
+    checks = [
+        c for c in result.validation_f2.checks
+        if c.column == date_col and c.name == "Mixed Types"
+    ]
+    passed = len(checks) > 0
+    status = "OK  " if passed else "FAIL"
+    detail = f"({checks[0].message})" if checks else "(no Mixed Types check found)"
+    print(f"  P1-T3 Mixed Types in {date_col:<16} {status}  {detail}")
+    return passed
 
 
 # ---------------------------------------------------------------------------
@@ -150,9 +163,13 @@ if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "--quick"
 
     if mode == "--full":
-        run_benchmark("500k Full — milestone validation", FILE_A_500K, FILE_B_500K, EXPECTED_500K, ["EmployeeID"])
+        _, res = run_benchmark("500k Full — milestone validation", FILE_A_500K, FILE_B_500K, EXPECTED_500K, ["EmployeeID"])
+        check_p1t3_mixed_types(res, "JoinDate")
     elif mode == "--all":
-        run_benchmark("100k Quick — regression check", FILE_A_100K, FILE_B_100K, EXPECTED_100K, ["CustomerID"])
-        run_benchmark("500k Full — milestone validation", FILE_A_500K, FILE_B_500K, EXPECTED_500K, ["EmployeeID"])
+        _, res100 = run_benchmark("100k Quick — regression check", FILE_A_100K, FILE_B_100K, EXPECTED_100K, ["CustomerID"])
+        check_p1t3_mixed_types(res100, "LastPurchaseDate")  # 100k uses LastPurchaseDate
+        _, res500 = run_benchmark("500k Full — milestone validation", FILE_A_500K, FILE_B_500K, EXPECTED_500K, ["EmployeeID"])
+        check_p1t3_mixed_types(res500, "JoinDate")  # 500k uses JoinDate
     else:  # --quick or default
-        run_benchmark("100k Quick — regression check", FILE_A_100K, FILE_B_100K, EXPECTED_100K, ["CustomerID"])
+        _, res = run_benchmark("100k Quick — regression check", FILE_A_100K, FILE_B_100K, EXPECTED_100K, ["CustomerID"])
+        check_p1t3_mixed_types(res, "LastPurchaseDate")  # 100k uses LastPurchaseDate, not JoinDate

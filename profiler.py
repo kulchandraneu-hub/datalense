@@ -111,8 +111,9 @@ def profile_column(
     total_null_variants = polars_null + empty_str + whitespace + textual
     null_variant_rate = total_null_variants / row_count if row_count > 0 else 0.0
 
-    # Type inference
-    inferred_type, type_dist, invalid_parse = _infer_type(lf, col, row_count)
+    # Type inference — pass non_null_count to avoid an extra .collect() inside _infer_type
+    non_null = row_count - polars_null
+    inferred_type, type_dist, invalid_parse = _infer_type(lf, col, row_count, non_null)
 
     # Pass 2: min / max / sample (cheap — polars aggregates lazily)
     try:
@@ -160,11 +161,21 @@ def _infer_type(
     lf: pl.LazyFrame,
     col: str,
     row_count: int,
+    non_null_count: int,
 ) -> tuple[str, dict[str, float], int]:
     """
-    Attempt type casts with strict=False. Return (dominant_type, distribution, invalid_count).
+    Priority-based type inference: Int64 > Float64 > Boolean > Date > Datetime > String.
+
+    Dominant = highest-priority type where >= 95% of non-null rows parse successfully.
+    If none qualify, uses the highest-coverage specific type so the Mixed Types
+    validation check can fire (e.g. JoinDate with mixed ISO + US date formats).
+
+    Returns (dominant_type, type_distribution, invalid_parse_count).
+    - type_distribution: {dominant: fraction, "string": 1-fraction} over non-null rows.
+    - invalid_parse_count: non-null rows that do not parse as the dominant type.
     """
-    counts: dict[str, int] = {}
+    if non_null_count == 0:
+        return "string", {"string": 1.0}, 0
 
     def _try_cast(dtype) -> int:
         try:
@@ -174,37 +185,73 @@ def _infer_type(
         except Exception:
             return 0
 
-    counts["integer"] = _try_cast(pl.Int64)
-    counts["float"] = _try_cast(pl.Float64)
-    counts["boolean"] = _try_cast(pl.Boolean)
-
-    # Date / datetime: try string parsing
+    # Columns already typed as Date/Datetime by Polars schema cast to Int64 as
+    # days-since-epoch, which would falsely dominate as "integer". Skip those casts.
     try:
-        counts["date"] = int(
+        col_dtype = lf.collect_schema()[col]
+    except Exception:
+        col_dtype = None
+    is_temporal = col_dtype in (pl.Date, pl.Datetime)
+
+    int_count   = 0 if is_temporal else _try_cast(pl.Int64)
+    float_count = 0 if is_temporal else _try_cast(pl.Float64)
+    bool_count  = 0 if is_temporal else _try_cast(pl.Boolean)
+
+    try:
+        date_count = int(
             lf.select(
                 pl.col(col).cast(pl.Utf8).str.to_date(strict=False).is_not_null().sum()
             ).collect().item()
         )
     except Exception:
-        counts["date"] = 0
+        date_count = 0
 
     try:
-        counts["datetime"] = int(
+        datetime_count = int(
             lf.select(
                 pl.col(col).cast(pl.Utf8).str.to_datetime(strict=False).is_not_null().sum()
             ).collect().item()
         )
     except Exception:
-        counts["datetime"] = 0
+        datetime_count = 0
 
-    # String is always valid
-    counts["string"] = row_count
+    specific = {
+        "integer":  int_count,
+        "float":    float_count,
+        "boolean":  bool_count,
+        "date":     date_count,
+        "datetime": datetime_count,
+    }
 
-    total = sum(counts.values())
-    type_dist = {k: (v / total if total > 0 else 0.0) for k, v in counts.items()}
+    THRESHOLD = 0.95
+    priority = ["integer", "float", "boolean", "date", "datetime"]
 
-    dominant = max(counts, key=lambda k: counts[k])
-    invalid_count = max(0, row_count - counts[dominant])
+    # Step 1: first type in priority order meeting the dominance threshold
+    dominant = "string"
+    dominant_count = non_null_count
+    for t in priority:
+        if specific[t] / non_null_count >= THRESHOLD:
+            dominant = t
+            dominant_count = specific[t]
+            break
+
+    # Step 2: if no type dominates, use the best specific type for Mixed Types detection.
+    # Without this, mixed-format columns (e.g. JoinDate ISO+US) would always show
+    # dominant="string" and invalid_parse_count=0, permanently suppressing the check.
+    if dominant == "string":
+        best_t = max(priority, key=lambda k: specific[k])
+        if specific[best_t] > 0:
+            dominant = best_t
+            dominant_count = specific[best_t]
+
+    # Step 3: build exclusive distribution and invalid count
+    if dominant == "string":
+        # Truly string column — no specific type parseable at all
+        return "string", {"string": 1.0}, 0
+
+    best_frac = dominant_count / non_null_count
+    type_dist = {dominant: best_frac, "string": max(0.0, 1.0 - best_frac)}
+    invalid_count = non_null_count - dominant_count
 
     return dominant, type_dist, invalid_count
 
@@ -226,5 +273,33 @@ if __name__ == "__main__":
 
     p_val = profile_column(lf, "value", 5)
     assert p_val.textual_null_count == 1, f"Expected 1 textual null, got {p_val.textual_null_count}"
+
+    # P1-T3: mixed-type detection — ISO dates and US dates in same column
+    df_mixed = pl.DataFrame({
+        "date_col": ["2021-01-15", "2021-02-20", "03/15/2021", "2021-04-10", "05/20/2021"],
+    })
+    p_mixed = profile_column(df_mixed.lazy(), "date_col", 5)
+    assert p_mixed.inferred_type == "date", \
+        f"P1-T3: expected 'date', got '{p_mixed.inferred_type}'"
+    assert p_mixed.invalid_parse_count > 0, \
+        f"P1-T3: expected invalid_parse_count > 0, got {p_mixed.invalid_parse_count}"
+    assert p_mixed.type_distribution.get("date", 0) < 0.95, \
+        f"P1-T3: date fraction should be < 0.95, got {p_mixed.type_distribution.get('date', 0)}"
+
+    # P1-T3: pure integer column must NOT trigger mixed-type
+    df_int = pl.DataFrame({"ids": ["1001", "1002", "1003", "1004", "1005"]})
+    p_int = profile_column(df_int.lazy(), "ids", 5)
+    assert p_int.inferred_type == "integer", \
+        f"P1-T3: expected 'integer', got '{p_int.inferred_type}'"
+    assert p_int.invalid_parse_count == 0, \
+        f"P1-T3: pure int column should have invalid_parse_count=0, got {p_int.invalid_parse_count}"
+
+    # P1-T3: pure string column must NOT trigger mixed-type
+    df_str = pl.DataFrame({"names": ["Alice", "Bob", "Charlie", "David", "Eve"]})
+    p_str = profile_column(df_str.lazy(), "names", 5)
+    assert p_str.inferred_type == "string", \
+        f"P1-T3: expected 'string', got '{p_str.inferred_type}'"
+    assert p_str.invalid_parse_count == 0, \
+        f"P1-T3: pure string column should have invalid_parse_count=0"
 
     print("✓ Profiler tests passed")

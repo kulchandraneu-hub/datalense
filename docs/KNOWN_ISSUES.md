@@ -1,6 +1,6 @@
 # Known Issues — DataLens
 
-_Last updated: 2026-05-14 (P1-T1 + P1-T2 + P1-T6 + P1-T7 applied)_
+_Last updated: 2026-05-14 (P1-T1 + P1-T2 + P1-T6 + P1-T7 + P1-T3 applied)_
 _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 
 ---
@@ -29,12 +29,17 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 - **Benchmark:** added_rows went from 0 to 5,000 ✓; removed_rows went from 0 to 5,000 ✓.
 
 ### KI-004 — `_infer_type()` always returns "string" as dominant type
-- **Status:** Unfixed
-- **File:** `profiler.py:159–209`
-- **Impact:** `counts["string"] = row_count` always. Since string count always equals or exceeds any other type count, `max(counts)` always returns "string". Downstream effect: `invalid_parse_count` is always 0, so the "Mixed Types" validation check (`validator.py:221–237`) **never fires**.
-- **Root cause:** Type counts are not mutually exclusive; string count is not "rows that only parse as string", it is all rows.
-- **Fix:** P1-T3 — Use priority-based mutually exclusive type counting.
-- **Fix target:** Phase 1, step 5.
+- **Status:** FIXED (P1-T3, 2026-05-14)
+- **File:** `profiler.py` (was `:159–209`)
+- **Fix applied:**
+  - `_infer_type()` now uses priority-based logic: Int64 > Float64 > Boolean > Date > Datetime > String. Dominant = first type in priority order where ≥ 95% of non-null rows parse.
+  - If no type meets the threshold, the highest-coverage specific type is used as the display-dominant so `invalid_parse_count` is non-zero for mixed-format columns.
+  - Temporal columns (already typed as `pl.Date`/`pl.Datetime` in the LazyFrame schema) skip Int64/Float64/Boolean casts to prevent false "integer" dominant from days-since-epoch conversion.
+  - `type_distribution` is now a 2-key exclusive dict: `{dominant: fraction, "string": 1-fraction}` over non-null rows. Previously it was 6 overlapping counts normalized by their sum.
+  - `invalid_parse_count` is now `non_null_count - dominant_count` (non-null rows that fail to parse as dominant). Previously always 0.
+  - `_check_type_consistency` in `validator.py` updated: removed `max_pct < 0.95` guard (too coarse for 1–5% mixed content). Now fires when `inferred_type != "string" and invalid_parse_count > 0`.
+  - `non_null_count` is passed from `profile_column` (already computed from `polars_null`) to avoid an extra `.collect()` call in `_infer_type`.
+- **Benchmark (100k):** `LastPurchaseDate` in file B correctly flagged as Mixed Types (96% date, 4004 rows do not parse as ISO date). ✓
 
 ### KI-005 — Double profiling in compare flow (4 passes instead of 2)
 - **Status:** FIXED (P1-T6, 2026-05-14)
@@ -151,4 +156,5 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 ### KI-001 — Diff counts sample-based → FIXED (P1-T1, 2026-05-14)
 ### KI-002 — No full-file count path → PARTIALLY FIXED (P1-T1, counts done; export still P3-T5)
 ### KI-003 — Added/removed null misclassification → FIXED (P1-T2, 2026-05-14)
+### KI-004 — `_infer_type()` always returns "string" → FIXED (P1-T3, 2026-05-14)
 ### KI-010 — No `is_full_count` field → FIXED (P1-T5 implemented alongside P1-T1/T2, 2026-05-14)

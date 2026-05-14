@@ -67,14 +67,27 @@ _Format: date, decision, rationale, alternatives considered._
 ---
 
 ### D-006 — Type inference uses priority-based mutually-exclusive counting
-- **Date:** 2026-05-14 (planned, not yet implemented)
-- **Status:** Pending (Phase 1, step 5)
-- **Decision:** In `_infer_type()`, use a priority hierarchy: Int64 > Float64 > Boolean > Date > Datetime > String. A column's dominant type is the highest-priority type that successfully parses ≥ 95% of non-null rows. `invalid_parse_count` = rows that fail to parse as the dominant type (and are not null).
-- **Rationale:** The current implementation adds independent (overlapping) counts then normalizes, which always results in "string" being dominant because `counts["string"] = row_count` always. This makes the "Mixed Types" validation check permanently inactive.
+- **Date:** 2026-05-14
+- **Status:** IMPLEMENTED (P1-T3, 2026-05-14)
+- **Decision:** In `_infer_type()`, use a priority hierarchy: Int64 > Float64 > Boolean > Date > Datetime > String. Dominant = first type in priority order where ≥ 95% of non-null rows parse. If none qualifies, best specific type is used (enables Mixed Types detection for moderate mixing). `type_distribution` is a 2-key exclusive dict; `invalid_parse_count` = non-null rows that fail the dominant type.
+- **Rationale:** The previous implementation set `counts["string"] = row_count` unconditionally, always making string the max in `max(counts)`. This kept `invalid_parse_count = 0` permanently, suppressing the Mixed Types check.
 - **Alternatives considered:**
-  - Use Polars `dtype` from schema: fast but only reflects inferred schema from `infer_schema_length` rows, not the full distribution.
-  - Use Polars `Series.dtype` after cast attempt: equivalent to priority-based approach but requires more scaffolding.
-- **Threshold note:** 95% dominance means a column with 5% mixed types triggers "Mixed Types" warning. This matches the existing check in `_check_type_consistency` (fires when `max_pct < 0.95`).
+  - Use Polars `dtype` from schema: only reflects inferred schema from `infer_schema_length` rows, not full distribution.
+  - Truly mutually-exclusive counts (subtract each type from the next): requires subtracting overlapping counts across types, which is fragile and harder to reason about.
+- **Temporal guard:** Columns already typed as `pl.Date`/`pl.Datetime` in the LazyFrame schema skip Int64/Float64/Boolean casts; without this guard, dates cast to days-since-epoch integers would falsely dominate as "integer".
+- **Implementation note:** `non_null_count` is passed as a parameter from `profile_column` (already has `polars_null` count) to avoid an extra `.collect()` call inside `_infer_type`.
+
+---
+
+### D-011 — Mixed Types check fires on any non-zero invalid_parse_count for specific-type columns
+- **Date:** 2026-05-14
+- **Status:** IMPLEMENTED (P1-T3, 2026-05-14)
+- **Decision:** `_check_type_consistency` in `validator.py` now fires when `inferred_type != "string" and invalid_parse_count > 0`. The previous condition `max_pct < 0.95 and invalid_parse_count > 0` suppressed warnings for columns with 1–5% mixed content.
+- **Rationale:** The 100k benchmark has `LastPurchaseDate` with 4% US-format dates (4004 rows). The 500k benchmark has `JoinDate` with ~0.9% US-format dates (4437 rows). Both are below the previous 5% threshold, so the check never fired even after fixing `_infer_type`. The new condition fires whenever any non-string-dominant column has rows that fail to parse as the dominant type.
+- **Alternatives considered:**
+  - Lower `max_pct` threshold from 0.95 to 0.99: still uses a percentage-based gate, but the validator check's threshold and `_infer_type`'s THRESHOLD would need to stay consistent. More fragile.
+  - Minimum rate threshold (e.g., `invalid_rate > 0.001`): avoids firing for a single corrupt row, but introduces a second tunable constant with no clear basis.
+- **Trade-off:** May fire for a column with even a single parsing failure (e.g., one corrupt row in an otherwise clean integer column). The `affected_count` in the ValidationCheck output tells users how many rows are affected, so they can judge significance themselves.
 
 ---
 

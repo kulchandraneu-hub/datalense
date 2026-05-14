@@ -1,6 +1,6 @@
 # Implementation Roadmap — DataLens
 
-_Created: 2026-05-14. Last updated: 2026-05-14 (Phase 1 Step 3 — P1-T7 complete)._
+_Created: 2026-05-14. Last updated: 2026-05-14 (Phase 1 Step 4 — P1-T3 complete)._
 
 ---
 
@@ -31,11 +31,17 @@ _Created: 2026-05-14. Last updated: 2026-05-14 (Phase 1 Step 3 — P1-T7 complet
 - **Fix applied:** `pl.lit(1).alias("_in_f1")` added to `lf1_sem` and `lf1_raw`; `pl.lit(1).alias("_in_f2")` added to `lf2_sem` and `lf2_raw` — before join. After join: `_in_f1 IS NULL` → added; `_in_f2 IS NULL` → removed. Sentinel-based check applied in both the Polars expression plan and the Python sample loop. Value heuristic eliminated.
 - **Benchmark result:** `added_rows=5000 ✓`, `removed_rows=5000 ✓` (both were 0 before).
 
-### P1-T3: Fix `_infer_type()` type distribution `[ ]`
-- **File:** `profiler.py`
-- **Problem:** `counts["string"] = row_count` always. Normalization by sum of overlapping counts makes string always dominant. `invalid_parse_count` always 0. "Mixed Types" validation check permanently inactive.
-- **Fix:** Use mutually-exclusive counting. Priority: Int64 → Float64 → Boolean → Date → Datetime → String (fallback). Invalid count = rows that don't parse as dominant type and are not null.
-- **Acceptance:** `JoinDate` column in benchmark file B must be flagged as "Mixed Types" (some rows YYYY-MM-DD, others MM/DD/YYYY).
+### P1-T3: Fix `_infer_type()` type distribution `[x]`
+- **Files:** `profiler.py`, `validator.py`
+- **Completed:** 2026-05-14
+- **Fix applied:**
+  - `_infer_type()` rewritten with priority-based logic (Int64 > Float64 > Boolean > Date > Datetime > String). Dominant = first type where ≥ 95% of non-null rows parse. If none qualify, best specific type used so `invalid_parse_count` is non-zero for mixed-format columns.
+  - Temporal dtype guard: columns already schema-typed as `pl.Date`/`pl.Datetime` skip Int64/Float64/Boolean casts (days-since-epoch conversion would falsely dominate as "integer").
+  - `type_distribution` is now exclusive 2-key dict `{dominant: fraction, "string": 1−fraction}` over non-null rows.
+  - `non_null_count` is passed from `profile_column` (no extra `.collect()`).
+  - `_check_type_consistency` in `validator.py`: removed `max_pct < 0.95` guard. Now fires for any `inferred_type != "string"` column with `invalid_parse_count > 0`. The old guard blocked warnings for 1–5% mixed content (benchmark has 4% mixed LastPurchaseDate in 100k file, 0.9% JoinDate in 500k).
+- **Benchmark (100k):** `LastPurchaseDate` in file B flagged as Mixed Types (96% date, 4004 non-parseable rows). ✓
+- **Remaining gap:** `modified_rows` gap (KI-016) unaffected by this task — closes after P1-T8.
 
 ### P1-T4: Fix `render_excel_diff()` — include f2 values `[ ]`
 - **File:** `reporters.py`
@@ -157,7 +163,7 @@ Execute in this exact sequence to avoid rework:
 
 2. P1-T6          [x] DONE 2026-05-14 — remove duplicate profiling (4 passes → 2)
 3. P1-T7          [x] DONE 2026-05-14 — full-file key validation before diff; is_full_count=False on duplicate keys
-4. P1-T3          [ ] fix type inference — unblocks Mixed Types check
+4. P1-T3          [x] DONE 2026-05-14 — priority-based _infer_type; Mixed Types check unblocked
 5. P1-T8          [ ] raise infer_schema_length — closes KI-016 (modified count gap)
 6. P1-T4          [ ] fix Excel export — isolated, no dependencies
 ```
