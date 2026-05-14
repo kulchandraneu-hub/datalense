@@ -14,7 +14,7 @@ except ImportError:
                 setattr(self, k, v)
 
 from profiler import FileProfile, ColumnProfile, profile_file
-from key_discovery import validate_key, discover_keys
+from key_discovery import validate_key, discover_keys, check_key_nulls
 from metadata import FileMetadata, SchemaDiff, compare_schemas
 from utils import Progress, check_cancel
 
@@ -83,19 +83,26 @@ def validate_file(
     metadata: FileMetadata,
     config: Optional[ValidationConfig] = None,
     key_columns: Optional[list[str]] = None,
+    profile: Optional[FileProfile] = None,
     progress: Optional[Progress] = None,
     cancel_token: Optional[threading.Event] = None,
 ) -> ValidationReport:
-    """Validate a single file: structure + data quality."""
+    """Validate a single file: structure + data quality.
+
+    If ``profile`` is provided it is used directly and ``profile_file()`` is
+    not called, avoiding a redundant profiling pass when the caller already
+    has a pre-computed profile (e.g. the compare flow).
+    """
     start = time.time()
     check_cancel(cancel_token)
 
     if config is None:
         config = ValidationConfig()
 
-    if progress:
-        progress.update("Validation", "Profiling file", 0, 1)
-    profile = profile_file(lf, metadata, progress, cancel_token)
+    if profile is None:
+        if progress:
+            progress.update("Validation", "Profiling file", 0, 1)
+        profile = profile_file(lf, metadata, progress, cancel_token)
 
     checks: list[ValidationCheck] = []
     checks.extend(_check_row_count(profile))
@@ -105,6 +112,8 @@ def validate_file(
 
     if key_columns:
         check_cancel(cancel_token)
+
+        # Uniqueness check — full scan (P1-T7: not sampled)
         is_unique, dup_count = validate_key(lf, key_columns)
         if not is_unique:
             severity: Literal["WARNING", "CRITICAL"] = (
@@ -114,9 +123,29 @@ def validate_file(
                 name="Duplicate Keys",
                 severity=severity,
                 passed=False,
-                message=f"Key column(s) {key_columns} have {dup_count} duplicate(s)",
+                message=(
+                    f"Key column(s) {key_columns} have {dup_count} duplicate row(s) — "
+                    "diff counts may be inflated by Cartesian product"
+                ),
                 column=",".join(key_columns),
                 affected_count=dup_count,
+            ))
+
+        # Null-in-key check — full scan (P1-T7)
+        null_key_count = check_key_nulls(lf, key_columns)
+        if null_key_count > 0:
+            null_key_rate = null_key_count / profile.total_count if profile.total_count else 0.0
+            checks.append(ValidationCheck(
+                name="Key Column Nulls",
+                severity="WARNING",
+                passed=False,
+                message=(
+                    f"Key column(s) {key_columns} contain {null_key_count} null row(s) "
+                    f"({null_key_rate * 100:.1f}%) — these rows will appear as spurious "
+                    "added/removed in the diff"
+                ),
+                column=",".join(key_columns),
+                affected_count=null_key_count,
             ))
 
     for rule in config.business_rules:
@@ -143,15 +172,25 @@ def validate_two_files(
     lf2: pl.LazyFrame,
     m2: FileMetadata,
     config: Optional[ValidationConfig] = None,
+    profile1: Optional[FileProfile] = None,
+    profile2: Optional[FileProfile] = None,
+    key_columns: Optional[list[str]] = None,
     progress: Optional[Progress] = None,
     cancel_token: Optional[threading.Event] = None,
 ) -> tuple[ValidationReport, ValidationReport, SchemaDiff]:
-    """Validate two files and compare their schemas."""
+    """Validate two files and compare their schemas.
+
+    Pass ``profile1`` / ``profile2`` when pre-computed profiles are available
+    (e.g. from the compare flow) to skip redundant profiling passes.
+
+    Pass ``key_columns`` to surface duplicate-key and null-in-key checks in the
+    ValidationReport for both files (P1-T7).
+    """
     check_cancel(cancel_token)
 
-    report1 = validate_file(lf1, m1, config, progress=progress, cancel_token=cancel_token)
+    report1 = validate_file(lf1, m1, config, key_columns=key_columns, profile=profile1, progress=progress, cancel_token=cancel_token)
     check_cancel(cancel_token)
-    report2 = validate_file(lf2, m2, config, progress=progress, cancel_token=cancel_token)
+    report2 = validate_file(lf2, m2, config, key_columns=key_columns, profile=profile2, progress=progress, cancel_token=cancel_token)
     check_cancel(cancel_token)
 
     schema_diff = compare_schemas(m1, m2)

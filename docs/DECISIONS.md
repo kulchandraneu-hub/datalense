@@ -45,8 +45,8 @@ _Format: date, decision, rationale, alternatives considered._
 ---
 
 ### D-004 — Validate key on full file before diff (not just in validator)
-- **Date:** 2026-05-14 (planned, not yet implemented)
-- **Status:** Pending (Phase 1, step 4)
+- **Date:** 2026-05-14
+- **Status:** IMPLEMENTED (P1-T7, 2026-05-14)
 - **Decision:** After `discover_keys()` returns candidates, call `validate_key(lf1, key_columns)` and `validate_key(lf2, key_columns)` on the full LazyFrames before `diff_files()` is invoked. If either key is non-unique, surface a warning and either abort or proceed with a user-acknowledged degraded state.
 - **Rationale:** A non-unique key in either file causes the full-outer join to produce a Cartesian product for duplicate rows, silently inflating all diff counts. This cannot be caught after the fact.
 - **Alternatives considered:**
@@ -56,8 +56,8 @@ _Format: date, decision, rationale, alternatives considered._
 ---
 
 ### D-005 — Profiler accepts pre-computed `FileProfile` to avoid re-profiling
-- **Date:** 2026-05-14 (planned, not yet implemented)
-- **Status:** Pending (Phase 1, step 3)
+- **Date:** 2026-05-14
+- **Status:** IMPLEMENTED (P1-T6, 2026-05-14)
 - **Decision:** Add `profile: Optional[FileProfile] = None` to `validate_file()`. If provided, skip the internal `profile_file()` call. `compare.py` passes the profiles computed in steps 4–5 when calling `validate_two_files()`.
 - **Rationale:** The compare flow currently profiles each file twice (once in `run_compare`, once in `validate_two_files`). Eliminating the duplicate roughly halves profiling I/O for compare runs.
 - **Alternatives considered:**

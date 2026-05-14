@@ -116,12 +116,28 @@ def validate_key(
     """
     Check that key_columns form a unique key over the full LazyFrame.
     Returns (is_unique, duplicate_count).
+    Full-file scan — do not call on a sampled frame.
     """
     df = lf.select(key_columns).collect()
     total = df.height
     unique = df.unique().height
     duplicates = total - unique
     return duplicates == 0, duplicates
+
+
+def check_key_nulls(
+    lf: pl.LazyFrame,
+    key_columns: list[str],
+) -> int:
+    """
+    Return the count of rows where ANY key column is null.
+    Full-file scan. Null key rows are unmatched in the join and appear as
+    spurious added/removed rows — they must be surfaced as a warning.
+    """
+    if not key_columns:
+        return 0
+    null_expr = pl.any_horizontal([pl.col(c).is_null() for c in key_columns])
+    return int(lf.select(null_expr.sum().alias("n")).collect().item())
 
 
 if __name__ == "__main__":

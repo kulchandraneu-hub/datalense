@@ -13,6 +13,7 @@ from metadata import load_metadata, FileMetadata, compare_schemas, SchemaDiff
 from profiler import profile_file, FileProfile
 from validator import validate_two_files, ValidationReport, ValidationConfig
 from differ import diff_files, DiffResult, IgnoreRules
+from key_discovery import discover_keys, validate_key
 from reporters import render_html_report, render_excel_diff, render_json_diff, render_csv_diff
 from utils import Progress, check_cancel, unique_output_path
 
@@ -110,7 +111,6 @@ def run_compare(
         if not key_columns:
             if progress:
                 progress.update("Key Discovery", "Auto-detecting key columns", 0, 1)
-            from key_discovery import discover_keys
             candidates = discover_keys(lf1, progress=progress, cancel_token=cancel_token)
             if candidates and candidates[0].is_unique:
                 key_columns = candidates[0].columns
@@ -118,6 +118,25 @@ def run_compare(
                 key_columns = [m1.columns[0]]  # fallback: first column
 
         check_cancel(cancel_token)
+
+        # Step 6.5: P1-T7 — validate key uniqueness on full file before diff.
+        # discover_keys() only samples 100k rows. A key unique in the sample may
+        # have duplicates in the full file, causing a Cartesian-product join that
+        # silently inflates all diff counts.
+        if progress:
+            progress.update("Key Validation", f"Validating key on full file: {', '.join(key_columns)}", 0, 2)
+        is_unique_f1, dup_f1 = validate_key(lf1, key_columns)
+        check_cancel(cancel_token)
+
+        if progress:
+            progress.update("Key Validation", "Validating key in file 2", 1, 2)
+        is_unique_f2, dup_f2 = validate_key(lf2, key_columns)
+        check_cancel(cancel_token)
+
+        # key_degraded=True means at least one file has duplicate keys.
+        # The diff still runs (warn-and-continue), but is_full_count is set to
+        # False post-diff because the Cartesian product makes counts unreliable.
+        key_degraded = not (is_unique_f1 and is_unique_f2)
 
         # Step 7: diff
         if progress:
@@ -130,14 +149,23 @@ def run_compare(
             cancel_token=cancel_token,
         )
 
+        # P1-T7: if the key was non-unique in either file, mark counts as
+        # untrustworthy (Cartesian product may have inflated them).
+        if key_degraded:
+            diff.is_full_count = False
+
         check_cancel(cancel_token)
 
-        # Step 8: validate
+        # Step 8: validate — pass pre-computed profiles (P1-T6) and key_columns
+        # (P1-T7) so that duplicate-key and null-in-key checks appear in the report.
         if progress:
             progress.update("Validation", "Validating both files", 0, 1)
         report1, report2, _ = validate_two_files(
             lf1, m1, lf2, m2,
             config=request.validation_config,
+            profile1=profile1,
+            profile2=profile2,
+            key_columns=key_columns,
             progress=progress,
             cancel_token=cancel_token,
         )

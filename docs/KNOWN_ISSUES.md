@@ -1,6 +1,6 @@
 # Known Issues — DataLens
 
-_Last updated: 2026-05-14 (P1-T1 + P1-T2 applied)_
+_Last updated: 2026-05-14 (P1-T1 + P1-T2 + P1-T6 + P1-T7 applied)_
 _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 
 ---
@@ -37,20 +37,20 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 - **Fix target:** Phase 1, step 5.
 
 ### KI-005 — Double profiling in compare flow (4 passes instead of 2)
-- **Status:** Unfixed
-- **Files:** `compare.py:94–103`, `validator.py:96–99`
-- **Impact:** Each profiling pass executes ~3 Polars `.collect()` calls per column. For 14 columns: 3 × 14 × 4 = 168 collect() calls for profiling alone in a single compare run. Doubles I/O and CPU time for large files.
-- **Root cause:** `validate_file()` always calls `profile_file()` internally. `run_compare()` passes no pre-computed profile to the validate step.
-- **Fix:** P1-T6 — Add optional `profile` parameter to `validate_file()`; pass existing profile from compare flow.
-- **Fix target:** Phase 1, step 3.
+- **Status:** FIXED (P1-T6, 2026-05-14)
+- **Files:** `compare.py`, `validator.py`
+- **Fix applied:** `validate_file()` now accepts `profile: Optional[FileProfile] = None`; if provided, `profile_file()` is skipped. `validate_two_files()` accepts `profile1` / `profile2` and forwards to `validate_file()`. `compare.py:run_compare()` passes `profile1, profile2` from steps 4–5 to step 8 validation call. Standalone `/api/validate` flow unaffected (calls without profiles, falls back to internal profiling).
+- **Effect:** ~168 redundant `.collect()` calls eliminated per compare run on a 14-column file.
 
-### KI-006 — Key discovery uses 100k-row sample; no full-file validation before diff
-- **Status:** Unfixed
-- **Files:** `key_discovery.py:38`, `compare.py:109–118`
-- **Impact:** A column appearing unique in the first 100k rows may have duplicates in the full 500k rows. If selected as the join key, the full-outer join produces a Cartesian product for duplicate keys, silently inflating all diff counts.
-- **Root cause:** `discover_keys()` was designed for speed; `validate_key()` (full-scan) is called from validator only.
-- **Fix:** P1-T7 — Call `validate_key(lf1, key_columns)` and `validate_key(lf2, key_columns)` after key discovery, before `diff_files()`.
-- **Fix target:** Phase 1, step 4.
+### KI-006 — Key discovery uses 100k-row sample; no full-file validation before diff  
+- **Status:** FIXED (P1-T7, 2026-05-14)
+- **Files:** `compare.py`, `key_discovery.py`, `validator.py`
+- **Fix applied:**
+  - `compare.py` step 6.5: after key discovery, calls `validate_key()` on both full LazyFrames before `diff_files()`.
+  - If either file has non-unique keys: `key_degraded=True`; after diff returns, `diff.is_full_count = False` is set.
+  - `key_discovery.py`: added `check_key_nulls()` for null-in-key detection (full scan).
+  - `validator.py`: added null-in-key "Key Column Nulls" ValidationCheck; added `key_columns` param to `validate_two_files()` so both duplicate-key and null-key warnings appear in the ValidationReport.
+- **Benchmark (100k):** File B has 100 duplicate CustomerID rows → `is_full_count=False` correctly set. `added_rows=1000 ✓`, `removed_rows=2000 ✓`.
 
 ---
 

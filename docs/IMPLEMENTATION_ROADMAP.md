@@ -1,6 +1,6 @@
 # Implementation Roadmap — DataLens
 
-_Created: 2026-05-14. Last updated: 2026-05-14 (Phase 1 Step 1 complete)._
+_Created: 2026-05-14. Last updated: 2026-05-14 (Phase 1 Step 3 — P1-T7 complete)._
 
 ---
 
@@ -48,15 +48,21 @@ _Created: 2026-05-14. Last updated: 2026-05-14 (Phase 1 Step 1 complete)._
 - **Fix applied:** `is_full_count: bool = False` and `rows_scanned: int = 0` added to `DiffResult`. Set in `diff_files()`. `_serialize_diff()` in `web/api.py` now exposes both fields. Graceful-degradation path sets `is_full_count=False`.
 - **Remaining:** UI display (`index.html`) deferred to P4-T1.
 
-### P1-T6: Remove duplicate profiling in compare flow `[ ]`
+### P1-T6: Remove duplicate profiling in compare flow `[x]`
 - **Files:** `compare.py`, `validator.py`
-- **Problem:** `run_compare` profiles each file once (steps 4–5), then `validate_two_files` re-profiles each file. 4 profiling passes instead of 2.
-- **Fix:** Add `profile: Optional[FileProfile] = None` parameter to `validate_file()`. If provided, skip `profile_file()` call. `compare.py` passes `profile1` / `profile2` computed in steps 4–5.
+- **Completed:** 2026-05-14
+- **Fix applied:** Added `profile: Optional[FileProfile] = None` to `validate_file()` — if provided, `profile_file()` is skipped. Added `profile1: Optional[FileProfile] = None, profile2: Optional[FileProfile] = None` to `validate_two_files()` and forwarded to each `validate_file()` call. `compare.py` step 8 now passes `profile1, profile2` computed in steps 4–5. Standalone validate flow (`/api/validate`) unaffected — it calls `validate_two_files()` without profiles so the existing internal profiling path is preserved.
+- **Effect:** Profiling passes reduced from 4 to 2 per compare run. ~168 `.collect()` calls for profiling eliminated.
 
-### P1-T7: Validate key on full file before diff `[ ]`
-- **File:** `compare.py`, `key_discovery.py`
-- **Problem:** `discover_keys()` uses `head(100_000)` sample. A key that appears unique in 100k rows may have duplicates in the full 500k, causing Cartesian product in the join.
-- **Fix:** After key discovery, call `validate_key(lf1, key_columns)` and `validate_key(lf2, key_columns)` (both full-scan). If either fails, warn and either abort diff or re-attempt with composite key.
+### P1-T7: Validate key on full file before diff `[x]`
+- **Files:** `compare.py`, `key_discovery.py`, `validator.py`
+- **Completed:** 2026-05-14
+- **Fix applied:**
+  - `key_discovery.py`: added `check_key_nulls(lf, key_columns) -> int` — counts rows with any null key column via full LazyFrame scan.
+  - `compare.py` step 6.5: after key discovery, calls `validate_key(lf1, key_columns)` and `validate_key(lf2, key_columns)` on the full LazyFrames (not the 100k sample). If either file has duplicate keys, sets `key_degraded=True`. After diff, if `key_degraded`, sets `diff.is_full_count = False` (Cartesian product makes counts unreliable).
+  - `validator.py`: added `key_columns` parameter to `validate_two_files()`, forwarded to both `validate_file()` calls. `validate_file()` now runs both uniqueness check (existing) and null-in-key check (new "Key Column Nulls" ValidationCheck) when `key_columns` are provided.
+  - Step 8 (`validate_two_files`) now receives `key_columns` so "Duplicate Keys" and "Key Column Nulls" warnings appear in the ValidationReport.
+- **Benchmark result (100k):** `added=1000 ✓`, `removed=2000 ✓`, `is_full_count=False ✓` (correct — File B has 100 duplicate CustomerID rows), `modified=19580` (expected FAIL — same gap as before, from whitespace/case/date changes without ignore rules + 100 Cartesian duplicate rows).
 
 ### P1-T8: Raise `infer_schema_length` `[ ]`
 - **Files:** `compare.py:207–214`, `metadata.py:54–58`
@@ -149,8 +155,8 @@ Execute in this exact sequence to avoid rework:
    P1-T5          [x] DONE 2026-05-14 — is_full_count/rows_scanned (safe to do alongside)
    Benchmark: added=5000 ✓  removed=5000 ✓  modified=45563 (gap: KI-016)
 
-2. P1-T6          [ ] remove duplicate profiling — reduces test time for subsequent steps
-3. P1-T7          [ ] full-file key validation — must run before diff, after key discovery
+2. P1-T6          [x] DONE 2026-05-14 — remove duplicate profiling (4 passes → 2)
+3. P1-T7          [x] DONE 2026-05-14 — full-file key validation before diff; is_full_count=False on duplicate keys
 4. P1-T3          [ ] fix type inference — unblocks Mixed Types check
 5. P1-T8          [ ] raise infer_schema_length — closes KI-016 (modified count gap)
 6. P1-T4          [ ] fix Excel export — isolated, no dependencies

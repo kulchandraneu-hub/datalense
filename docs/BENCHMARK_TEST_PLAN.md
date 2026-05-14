@@ -1,8 +1,27 @@
 # Benchmark Test Plan — DataLens
 
-_Files: `testing_input_files/benchmark_500k_file_A.csv` and `benchmark_500k_file_B.csv`_
-_Source of truth: `testing_input_files/benchmark_500k_summary.txt`_
+_Files: see Test File Locations section below._
 _Do NOT move, rename, or modify the benchmark files._
+
+---
+
+## Benchmark Workflow
+
+```
+python benchmark_p1.py            # 100k quick mode (default) — fast regression
+python benchmark_p1.py --full     # 500k full milestone mode — architecture gate
+python benchmark_p1.py --all      # both in sequence
+```
+
+**When to use which:**
+
+| Mode | When to use |
+|------|-------------|
+| `--quick` (100k) | After every code change during Phase 1 development — fast feedback loop |
+| `--full` (500k) | After completing a Phase 1 task — milestone gate before moving to next task |
+| `--all` | Before marking a phase complete, before PRs |
+
+**Regression rule:** If a previously-passing assertion flips to FAIL, the code broke something. Fix the code, not the expected value, unless the spec changed.
 
 ---
 
@@ -49,7 +68,45 @@ _Do NOT move, rename, or modify the benchmark files._
 
 ---
 
-## Required Assertions (must all pass after Phase 1)
+## 100k Quick Assertions (run after every code change)
+
+Source of truth: `testing_input_files/benchmark_100k_summary.txt`
+
+### Injected Changes (100k)
+
+| Change type | Expected count | Notes |
+|-------------|---------------|-------|
+| Semantic changes | **8,000** | True value changes |
+| Whitespace-only | 3,000 | Formatting; should be `formatting_only` when `ignore_whitespace=True` |
+| Case-only | 3,000 | Formatting; should be `formatting_only` when `ignore_case=True` |
+| Mixed date formats | 4,000 | Affects JoinDate; triggers "Mixed Types" after P1-T3 |
+| Null injections | 5,000 | Empty cells in candidate file |
+| Removed rows | **2,000** | Present in A, not in B |
+| Added rows | **1,000** | Present in B, not in A |
+| Duplicate key rows | 100 | In file B — will inflate counts until P1-T7 key validation |
+
+### Diff Count Assertions (100k)
+
+Key: `CustomerID` (first column — different from 500k which uses `EmployeeID`)
+
+```python
+# Hard — must pass at all times
+assert diff.total_rows_f1 == 100_000
+assert diff.added_rows == 1_000
+assert diff.removed_rows == 2_000
+# P1-T7: File B has 100 duplicate CustomerID rows → key_degraded → is_full_count=False
+assert diff.is_full_count == False   # CORRECT behavior post-P1-T7
+
+# Soft — will show FAIL until listed tasks complete
+# modified_rows == 8_000   # true semantic target; FAIL expected until P1-T3 + ignore rules
+# rows_scanned == 101_100  # 2000 removed + 1000 added + 98000 matched + 100 Cartesian = 101100
+```
+
+---
+
+## 500k Full Assertions (run after each Phase 1 task completes)
+
+### Required Assertions (must all pass after Phase 1)
 
 ### Diff Counts
 
