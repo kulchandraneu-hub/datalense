@@ -1,0 +1,11 @@
+Benchmark Dataset Summary
+Rows: 500,000
+Columns: 14
+Injected Changes:
+- 50,000 modified rows
+- 5,000 removed rows
+- 5,000 added rows
+- Salary nulls
+- Case-only changes
+- Mixed date formats
+- Email typos

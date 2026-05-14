@@ -1,0 +1,14 @@
+
+Edge Cases Included:
+1. Exact matches
+2. Modified numeric values
+3. Changed text/case sensitivity
+4. Leading/trailing spaces
+5. Null vs blank
+6. Negative values
+7. Different date formats
+8. Apostrophe/special character differences
+9. Lowercase vs uppercase
+10. Typo in email
+11. Deleted row (EmployeeID 1007 missing)
+12. Newly added row (EmployeeID 1016)

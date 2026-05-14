@@ -1,0 +1,27 @@
+
+Benchmark 100K Dataset Summary
+
+Base File:
+- Rows: 100,000
+- Columns: 13
+
+Modified File:
+- Rows: 99,100 + 100 duplicate rows
+
+Scenarios Included:
+- 2,000 removed rows
+- 1,000 added rows
+- 8,000 semantic changes
+- 3,000 whitespace-only changes
+- 3,000 case-only changes
+- 4,000 mixed date formats
+- 5,000 null injections
+- 100 duplicate key rows
+- Column order differences
+
+Best For:
+- Faster correctness testing
+- Validation engine checks
+- Regression tests
+- Duplicate key handling
+- Formatting-only detection

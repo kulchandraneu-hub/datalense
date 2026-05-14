@@ -593,6 +593,8 @@ def _serialize_diff(d) -> dict:
         "total_rows_f1": d.total_rows_f1,
         "total_rows_f2": d.total_rows_f2,
         "confidence_score": round(d.confidence_score, 3),
+        "is_full_count": d.is_full_count,
+        "rows_scanned": d.rows_scanned,
         "key_columns": d.key_columns,
         "column_diffs": {
             name: {
