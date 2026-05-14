@@ -390,16 +390,17 @@ td.vr-del-cell{width:28px;text-align:center}
   color:var(--txt)!important;font-family:var(--font)!important;font-size:11px!important;padding:2px 6px!important;outline:none!important;border-radius:0!important}
 .tabulator .tabulator-header-filter input:focus,
 .tabulator .tabulator-header-filter select:focus{border-color:var(--blu)!important}
-/* table body scroll holder */
+/* table body scroll holder + inner table container */
 .tabulator .tabulator-tableholder{background:var(--sur)!important}
 .tabulator .tabulator-tableHolder{background:var(--sur)!important}
+.tabulator .tabulator-table{background:var(--sur)!important}
 /* rows */
 .tabulator .tabulator-row{background:var(--sur)!important;border-bottom:1px solid rgba(51,65,85,.35)!important;color:var(--txt)!important}
 .tabulator .tabulator-row.tabulator-row-even{background:var(--sur)!important}
 .tabulator .tabulator-row:hover,
 .tabulator .tabulator-row.tabulator-row-even:hover{background:var(--sur2)!important}
-/* cells */
-.tabulator .tabulator-row .tabulator-cell{border-right:1px solid rgba(51,65,85,.2)!important;padding:5px 10px!important;overflow:hidden;text-overflow:ellipsis;color:var(--txt)!important}
+/* cells — background:inherit so the row-level colour (including row-add/rem/mod/fmt) shows through */
+.tabulator .tabulator-row .tabulator-cell{background:inherit!important;border-right:1px solid rgba(51,65,85,.2)!important;padding:5px 10px!important;overflow:hidden;text-overflow:ellipsis;color:var(--txt)!important}
 /* frozen column cells */
 .tabulator .tabulator-cell.tabulator-frozen,.tabulator .tabulator-cell.tabulator-frozen-left{
   background:var(--sur)!important;border-right:1px solid var(--bdr)!important}
@@ -411,15 +412,15 @@ td.vr-del-cell{width:28px;text-align:center}
 .tabulator .tabulator-placeholder-contents,.tabulator .tabulator-placeholder{color:var(--mut)!important}
 /* footer (page info, pagination) */
 .tabulator-footer,.tabulator .tabulator-footer{background:var(--bg)!important;border-top:1px solid var(--bdr)!important;color:var(--mut)!important}
-/* row type colouring — semantic diff classes */
-.tabulator .tabulator-row.row-add{background:rgba(34,197,94,.07)!important}
-.tabulator .tabulator-row.row-rem{background:rgba(239,68,68,.07)!important}
-.tabulator .tabulator-row.row-mod{background:rgba(245,158,11,.07)!important}
-.tabulator .tabulator-row.row-fmt{background:rgba(148,163,184,.05)!important}
-.tabulator .tabulator-row.row-add:hover{background:rgba(34,197,94,.13)!important}
-.tabulator .tabulator-row.row-rem:hover{background:rgba(239,68,68,.13)!important}
-.tabulator .tabulator-row.row-mod:hover{background:rgba(245,158,11,.13)!important}
-.tabulator .tabulator-row.row-fmt:hover{background:rgba(148,163,184,.09)!important}
+/* row type colouring — semantic diff classes (apply to both row and cells for full coverage) */
+.tabulator .tabulator-row.row-add,.tabulator .tabulator-row.row-add .tabulator-cell{background:rgba(34,197,94,.07)!important}
+.tabulator .tabulator-row.row-rem,.tabulator .tabulator-row.row-rem .tabulator-cell{background:rgba(239,68,68,.07)!important}
+.tabulator .tabulator-row.row-mod,.tabulator .tabulator-row.row-mod .tabulator-cell{background:rgba(245,158,11,.07)!important}
+.tabulator .tabulator-row.row-fmt,.tabulator .tabulator-row.row-fmt .tabulator-cell{background:rgba(148,163,184,.05)!important}
+.tabulator .tabulator-row.row-add:hover,.tabulator .tabulator-row.row-add:hover .tabulator-cell{background:rgba(34,197,94,.13)!important}
+.tabulator .tabulator-row.row-rem:hover,.tabulator .tabulator-row.row-rem:hover .tabulator-cell{background:rgba(239,68,68,.13)!important}
+.tabulator .tabulator-row.row-mod:hover,.tabulator .tabulator-row.row-mod:hover .tabulator-cell{background:rgba(245,158,11,.13)!important}
+.tabulator .tabulator-row.row-fmt:hover,.tabulator .tabulator-row.row-fmt:hover .tabulator-cell{background:rgba(148,163,184,.09)!important}
 /* Word-wrap mode — toggled by JS adding .wrap-on to the .tabulator element */
 .tabulator.wrap-on .tabulator-cell{white-space:normal!important;word-break:break-word!important}
 /* light theme — CSS variables already flip; just undo the forced darks */
