@@ -101,7 +101,8 @@ button{cursor:pointer;font-family:var(--font)}
 
 /* ── Error banner ── */
 .banner-err{padding:8px 12px;background:rgba(239,68,68,.1);border-left:3px solid var(--red);
-  color:var(--red);font-size:12px;margin-bottom:12px}
+  color:var(--red);font-size:12px;margin-bottom:12px;
+  max-height:80px;overflow-y:auto;white-space:pre-wrap}
 
 /* ── Progress ── */
 .prog-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
@@ -642,7 +643,7 @@ td.vr-del-cell{width:28px;text-align:center}
     <div class="metric-bar" id="metric-bar"></div>
     <div id="schema-panel" style="display:none"></div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-      <button class="btn-sm" id="exp-btn" onclick="exportCSV()" style="display:none">⬇ Export CSV</button>
+      <button class="btn-sm" id="exp-btn" onclick="exportCSV()" style="display:none" title="Downloads at most 100 sample rows. Full export available in the exports/ folder.">⬇ Export CSV (sample, ≤100 rows)</button>
     </div>
     <div class="result-tabs" id="result-tabs"></div>
     <div id="rt-diff"></div>
@@ -925,7 +926,13 @@ function _applyTblFilters(tableId) {
   if (!q && typ === 'all') return;
   t.setFilter((row) => {
     if (typ !== 'all' && row.change_type !== typ) return false;
-    if (q && !Object.values(row).some(v => v != null && String(v).toLowerCase().includes(q))) return false;
+    if (q) {
+      // Use pre-built plain-text field if present (avoids searching HTML in `changes`)
+      const searchable = row._searchText != null
+        ? row._searchText
+        : Object.entries(row).filter(([k]) => k !== 'changes').map(([,v]) => v).join(' ');
+      if (!String(searchable).toLowerCase().includes(q)) return false;
+    }
     return true;
   });
 }
@@ -967,7 +974,10 @@ function initDiffTabulators(diff) {
         changes = `<span class="c-mut">${row.columns_changed.map(esc).join(', ')}</span>`;
       } else if (row.change_type === 'added')   changes = '<span class="c-grn">new row</span>';
       else if (row.change_type === 'removed')    changes = '<span class="c-red">deleted</span>';
-      return {key: row.key, change_type: row.change_type, changes};
+      const changesText = row.change_type === 'modified' && row.columns_changed?.length
+        ? row.columns_changed.map(c => `${c}: ${row.f1?.[c] ?? ''} → ${row.f2?.[c] ?? ''}`).join(' ')
+        : row.columns_changed?.join(', ') || row.change_type;
+      return {key: row.key, change_type: row.change_type, changes, _searchText: `${row.key} ${row.change_type} ${changesText}`};
     });
     mkTabulator('tbl-sdiff', smpData, [
       {title:`Key (${(diff.key_columns||[]).join(', ')})`, field:'key', resizable:true, minWidth:160, headerFilter:'input'},
@@ -975,9 +985,7 @@ function initDiffTabulators(diff) {
        formatter(cell) {
          const v = cell.getValue();
          return `<span class="badge ${typeMap[v]||''}">${v.replace('_',' ')}</span>`;
-       },
-       headerFilter:'select',
-       headerFilterParams:{values:{'':'All','added':'Added','removed':'Removed','modified':'Modified','formatting_only':'Fmt-only'}, clearable:true}
+       }
       },
       {title:'Changes', field:'changes', resizable:true, minWidth:260, formatter:'html', variableHeight:true}
     ], {
@@ -1214,6 +1222,7 @@ function openBrowse(slot) {
 }
 function closeBrowse() { ge('browse-bg').style.display='none'; }
 function onBgClick(e) { if(e.target===ge('browse-bg')) closeBrowse(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && ge('browse-bg')?.style.display !== 'none') closeBrowse(); });
 function brGoUp() { if(S.brParent) browseDir(S.brParent); }
 
 function _renderSidebar(quickAccess) {
@@ -1422,8 +1431,12 @@ function renderMetricBar(r) {
     h += `<div class="metric m-removed">−${d.removed_rows.toLocaleString()} REMOVED</div>`;
     h += `<div class="metric m-modified">~ ${d.modified_rows.toLocaleString()} MODIFIED</div>`;
     if (d.formatting_only_rows>0)
-      h += `<div class="metric m-fmt">${d.formatting_only_rows.toLocaleString()} FMT ONLY</div>`;
+      h += `<div class="metric m-fmt" title="Rows with raw string differences but identical semantic values (e.g. 50000 vs 50000.0)">${d.formatting_only_rows.toLocaleString()} FMT ONLY</div>`;
     h += `<div class="metric m-fmt">${fmtRows(d.total_rows_f1)} ↔ ${fmtRows(d.total_rows_f2)} ROWS</div>`;
+    if (d.key_columns?.length)
+      h += `<div class="metric m-fmt" title="Key columns used for row matching">KEY: ${d.key_columns.map(k=>`<strong>${esc(k)}</strong>`).join(', ')}</div>`;
+    if (d.is_full_count === false)
+      h += `<div class="metric" style="border-color:var(--yel);background:rgba(245,158,11,.1);color:var(--yel)" title="Key column has duplicates — counts may be inflated due to Cartesian product rows">⚠ ESTIMATE (duplicate keys)</div>`;
   }
   if (r.duration_s!=null)
     h += `<div class="metric m-dur">${fmtDur(r.duration_s)}</div>`;
@@ -1502,7 +1515,7 @@ function buildDiffTab(diff) {
   <div class="itbl-hd" onclick="toggleItblSection(this)">
     <span class="itbl-arr open">▶</span>
     <span class="itbl-title">Column Change Summary</span>
-    <span class="itbl-count">${nCols} column${nCols!==1?'s':''}</span>
+    <span class="itbl-count">${nCols} column${nCols!==1?'s':''} · <span style="color:var(--mut);font-size:10px;font-weight:400">rates based on sample ≤200 rows</span></span>
   </div>
   <div class="itbl-toolbar">
     <input class="itbl-search" placeholder="🔍 Filter…" oninput="filterTable('tbl-cdiff',this.value)" title="Search all columns">
@@ -1523,7 +1536,7 @@ function buildDiffTab(diff) {
       <button class="pill p-add"  data-pg="dt" onclick="setDiffTypeFilter('added',this)">Added</button>
       <button class="pill p-rem"  data-pg="dt" onclick="setDiffTypeFilter('removed',this)">Removed</button>
       <button class="pill p-mod"  data-pg="dt" onclick="setDiffTypeFilter('modified',this)">Modified</button>
-      <button class="pill p-fmt"  data-pg="dt" onclick="setDiffTypeFilter('formatting_only',this)">Fmt-only</button>
+      <button class="pill p-fmt"  data-pg="dt" onclick="setDiffTypeFilter('formatting_only',this)" title="Rows with raw string differences but identical semantic values (e.g. 50000 vs 50000.0, or whitespace/case changes)">Fmt-only</button>
     </div>
     <input class="itbl-search" placeholder="🔍 Filter rows…" oninput="filterTable('tbl-sdiff',this.value)" title="Search key, type, and changes">
     <button class="btn-wrap" data-wrap="tbl-sdiff" onclick="toggleWrap('tbl-sdiff')">⏎ Wrap OFF</button>

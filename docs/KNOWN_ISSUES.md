@@ -1,6 +1,6 @@
 # Known Issues — DataLens
 
-_Last updated: 2026-05-14 (P1-T1 + P1-T2 + P1-T3 + P1-T4 + P1-T5 + P1-T6 + P1-T7 + P1-T8 + KI-016 applied — Phase 1 complete)_
+_Last updated: 2026-05-15 (Phase 2.5 UX audit — KI-019 through KI-023 added; small critical fixes applied)_
 _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 
 ---
@@ -153,6 +153,44 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 - **Impact:** Benchmark elapsed time increased from ~168s to ~344s. The `raw_joined` filter+count pass (for `formatting_only` count) is a second full scan of the 500k-row join result in addition to the semantic pass. For 5GB files this could be significant.
 - **Fix:** P3-T3 — Merge semantic and raw joins into one. A single combined join would allow both semantic and raw diffs to be classified in one Polars expression plan, eliminating the second scan.
 - **Fix target:** Phase 3.
+
+### KI-019 — Export modal / download has no progress indicator for large exports
+- **Status:** Unfixed
+- **Severity:** MEDIUM
+- **File:** `web/static/index.html` (exportCSV), `web/api.py`
+- **Impact:** For large files the export API call can take several seconds. The user sees no spinner or feedback; the button appears frozen. A repeated click re-issues the request.
+- **Fix:** Add a loading state to the export button (`disabled + "Exporting…"`) while the fetch is in flight. Reset on completion or error.
+- **Fix target:** Phase 4.
+
+### KI-020 — SSE progress bar shows no per-phase percentage breakdown
+- **Status:** Unfixed
+- **Severity:** LOW
+- **File:** `web/static/index.html` (SSE handler), `web/api.py` (progress events)
+- **Impact:** The progress bar is indeterminate for most of the run. Users cannot tell which phase (Profiling, Diffing, etc.) is the bottleneck.
+- **Fix:** Map each phase name to an approximate percentage range and advance the bar deterministically. The phase names are already emitted in the SSE stream (`Loading`, `Schema`, `Profiling`, `Key Discovery`, `Key Validation`, `Diffing`, `Validation`, `Exporting`).
+- **Fix target:** Phase 4.
+
+### KI-021 — `is_full_count=False` shown as "ESTIMATE" badge but no detail on which counts are affected
+- **Status:** PARTIAL FIX (2026-05-15) — badge added; no drill-down detail
+- **Severity:** MEDIUM
+- **File:** `web/static/index.html` (`renderMetricBar`)
+- **Impact:** When key degradation occurs the metric bar shows "⚠ ESTIMATE (duplicate keys)" but does not explain which file has duplicates or how many Cartesian rows were produced.
+- **Fix:** Add a link/tooltip that surfaces the "Duplicate Keys" ValidationCheck message from `validation_f1` / `validation_f2`.
+- **Fix target:** Phase 4.
+
+### KI-022 — Sample diff row search matches HTML markup in `changes` column
+- **Status:** FIXED (Phase 2.5, 2026-05-15)
+- **Severity:** MEDIUM
+- **File:** `web/static/index.html` (`_applyTblFilters`, `initDiffTabulators`)
+- **Fix applied:** Added `_searchText` plain-text field to each sample diff row during Tabulator data construction. `_applyTblFilters` now uses `row._searchText` for the text search instead of `Object.values(row)`, excluding the HTML-bearing `changes` field. Searching "span" or "val-old" no longer returns false positives.
+
+### KI-023 — File browser modal cannot be dismissed with Escape key
+- **Status:** FIXED (Phase 2.5, 2026-05-15)
+- **Severity:** LOW
+- **File:** `web/static/index.html`
+- **Fix applied:** Added `document.addEventListener('keydown', ...)` that calls `closeBrowse()` when `Escape` is pressed and the modal is visible.
+
+---
 
 ### KI-018 — `ColumnDiffStats.modified_count` and `formatting_only_count` are sample-based (≤1,000 rows)
 - **Status:** Unfixed — known gap after P1-T1
