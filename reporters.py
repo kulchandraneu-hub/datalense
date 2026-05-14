@@ -109,7 +109,8 @@ def render_html_report(
 
 
 def render_excel_diff(diff: DiffResult, output_path: Path) -> None:
-    """Write diff to Excel with color-coded rows."""
+    """Write diff to Excel. Each data column gets {col}_before and {col}_after columns.
+    Changed cells within modified rows are highlighted individually."""
     try:
         import openpyxl
         from openpyxl.styles import PatternFill, Font
@@ -120,27 +121,51 @@ def render_excel_diff(diff: DiffResult, output_path: Path) -> None:
     ws = wb.active
     ws.title = "Diff"
 
-    fills = {
-        "added":            PatternFill("solid", fgColor="166534"),
-        "removed":          PatternFill("solid", fgColor="7F1D1D"),
-        "modified":         PatternFill("solid", fgColor="78350F"),
-        "formatting_only":  PatternFill("solid", fgColor="1F2937"),
+    row_fills = {
+        "added":           PatternFill("solid", fgColor="166534"),
+        "removed":         PatternFill("solid", fgColor="7F1D1D"),
+        "modified":        PatternFill("solid", fgColor="78350F"),
+        "formatting_only": PatternFill("solid", fgColor="1F2937"),
     }
+    # Brighter amber overlay on the _after cell for each changed column in a modified row
+    changed_cell_fill = PatternFill("solid", fgColor="B45309")
 
-    header = [*diff.key_columns, "change_type", *list(diff.column_diffs.keys())]
+    data_cols = list(diff.column_diffs.keys())
+    key_count = len(diff.key_columns)
+
+    # Header: [key..., change_type, col1_before, col1_after, col2_before, col2_after, ...]
+    header = [*diff.key_columns, "change_type"]
+    for col in data_cols:
+        header.append(f"{col}_before")
+        header.append(f"{col}_after")
     ws.append(header)
     for cell in ws[1]:
         cell.font = Font(bold=True)
 
+    # 0-based index of each column's _after cell in the row tuple.
+    # Layout: 0..key_count-1 = keys, key_count = change_type,
+    #         key_count+1+2i = col_i _before, key_count+2+2i = col_i _after
+    col_after_idx = {col: key_count + 2 + 2 * i for i, col in enumerate(data_cols)}
+
     for row in diff.sample_diffs:
         vals = [row.key_value, row.change_type]
-        for col in diff.column_diffs:
+        for col in data_cols:
             vals.append(row.f1_values.get(col, ""))
+            vals.append(row.f2_values.get(col, ""))
         ws.append(vals)
-        fill = fills.get(row.change_type)
+
+        excel_row = ws[ws.max_row]
+        fill = row_fills.get(row.change_type)
         if fill:
-            for cell in ws[ws.max_row]:
+            for cell in excel_row:
                 cell.fill = fill
+
+        # Highlight the _after cell for each semantically-changed column
+        if row.change_type == "modified" and row.columns_changed:
+            for col in row.columns_changed:
+                after_i = col_after_idx.get(col)
+                if after_i is not None:
+                    excel_row[after_i].fill = changed_cell_fill
 
     wb.save(output_path)
 
@@ -200,4 +225,4 @@ def render_csv_diff(diff: DiffResult) -> str:
 
 
 if __name__ == "__main__":
-    print("✓ Reporters module ready for integration")
+    print("OK Reporters module ready for integration")

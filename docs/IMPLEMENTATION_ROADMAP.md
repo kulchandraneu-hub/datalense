@@ -42,10 +42,15 @@ _Created: 2026-05-14. Last updated: 2026-05-14 (Phase 1 Step 5 — P1-T8 complet
 - **Benchmark (100k):** `LastPurchaseDate` in file B flagged as Mixed Types (96% date, 4004 non-parseable rows). ✓
 - **Remaining gap:** `modified_rows` gap (KI-016) unaffected by this task — closes after P1-T8.
 
-### P1-T4: Fix `render_excel_diff()` — include f2 values `[ ]`
+### P1-T4: Fix `render_excel_diff()` — include f2 values `[x]`
 - **File:** `reporters.py`
-- **Problem:** Modified rows in Excel export show only old (`f1`) values. New (`f2`) values are silently dropped.
-- **Fix:** For each data column, write both `{col}_before` and `{col}_after` columns. Update header row. Color-code changed cells in addition to changed rows.
+- **Completed:** 2026-05-14
+- **Fix applied:**
+  - Header changed from single `{col}` to interleaved `{col}_before` / `{col}_after` for every data column.
+  - Both `f1_values.get(col, "")` and `f2_values.get(col, "")` written per row.
+  - Changed cells in `modified` rows receive a bright-amber cell fill (`B45309`) on the `_after` column. Row-level fills preserved for all change types.
+  - `render_csv_diff()` and `render_json_diff()` were already correct; no changes needed.
+- **Known gap (deferred):** Added/removed rows still have empty before/after cells. `RowDiff.f1_values` and `f2_values` are not populated for added/removed rows in the sample loop. Deferred to Phase 4 alongside P4-T2.
 
 ### P1-T5: Add `is_full_count` and `rows_scanned` to `DiffResult` `[x]`
 - **Files:** `differ.py`, `web/api.py`
@@ -161,16 +166,16 @@ Execute in this exact sequence to avoid rework:
 ```
 1. P1-T2 + P1-T1  [x] DONE 2026-05-14 — sentinel + full-file counts
    P1-T5          [x] DONE 2026-05-14 — is_full_count/rows_scanned (safe to do alongside)
-   Benchmark: added=5000 ✓  removed=5000 ✓  modified=45563 (gap: KI-016)
+   Benchmark: added=5000 OK  removed=5000 OK  modified=45563 OK (KI-016 resolved)
 
-2. P1-T6          [x] DONE 2026-05-14 — remove duplicate profiling (4 passes → 2)
+2. P1-T6          [x] DONE 2026-05-14 — remove duplicate profiling (4 passes -> 2)
 3. P1-T7          [x] DONE 2026-05-14 — full-file key validation before diff; is_full_count=False on duplicate keys
 4. P1-T3          [x] DONE 2026-05-14 — priority-based _infer_type; Mixed Types check unblocked
-5. P1-T8          [x] DONE 2026-05-14 — raise infer_schema_length to 10,000 (defensive; KI-016 gap persists — different root cause)
-6. P1-T4          [ ] fix Excel export — isolated, no dependencies
+5. P1-T8          [x] DONE 2026-05-14 — raise infer_schema_length to 10,000 (defensive)
+6. P1-T4          [x] DONE 2026-05-14 — Excel export: {col}_before/{col}_after headers + cell highlighting
 ```
 
-Run benchmark assertions after step 5 (P1-T8) and again after step 6 (P1-T4).
+All Phase 1 tasks complete. Phase 2 (automated regression tests) is next.
 
 **Note (2026-05-14 — KI-016 RESOLVED):** KI-016 (modified_rows gap of 4,437 in 500k) is a benchmark expectation artifact. Salary is Int64 in File A and Float64 in File B. Polars numeric type promotion makes `Int64(50000) == Float64(50000.0)`, so 4,437 rows where ONLY Salary format changed are classified as `formatting_only` (not `modified`). Engine is correct. Benchmark expected value updated to `modified_rows=45_563`. See D-012.
 

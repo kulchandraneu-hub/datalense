@@ -1,6 +1,6 @@
 # Known Issues — DataLens
 
-_Last updated: 2026-05-14 (P1-T1 + P1-T2 + P1-T6 + P1-T7 + P1-T3 + P1-T8 applied)_
+_Last updated: 2026-05-14 (P1-T1 + P1-T2 + P1-T3 + P1-T4 + P1-T5 + P1-T6 + P1-T7 + P1-T8 + KI-016 applied — Phase 1 complete)_
 _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 
 ---
@@ -76,11 +76,13 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 - **Defensive value:** For real-world files where format variation appears late (e.g., row 2000+ of a 5 GB CSV), this prevents silent type lock-in and subsequent coercion or error.
 
 ### KI-009 — Excel diff export shows only f1 (old) values for modified rows
-- **Status:** Unfixed
-- **File:** `reporters.py:137`
-- **Impact:** Users cannot see what the new value is for any modified row when reviewing the Excel export. The export is effectively useless for change review.
-- **Root cause:** `vals.append(row.f1_values.get(col, ""))` — f2 line was never written.
-- **Fix:** P1-T4 — Write both `{col}_before` and `{col}_after` columns.
+- **Status:** FIXED (P1-T4, 2026-05-14)
+- **File:** `reporters.py` (`render_excel_diff`)
+- **Fix applied:**
+  - Header changed from single `{col}` to interleaved `{col}_before` / `{col}_after` columns.
+  - Both `row.f1_values.get(col, "")` and `row.f2_values.get(col, "")` written for every data column.
+  - Changed cells within modified rows receive a bright-amber cell-level fill (`B45309`) on the `_after` column, distinct from the row-level amber (`78350F`). Unchanged cells keep the row-level fill only.
+- **Known remaining gap:** Added/removed rows still show empty before/after values. `f1_values` and `f2_values` in `RowDiff` are not populated for added/removed rows in the differ sample loop. This is a separate fix (differs scope, deferred to Phase 4 alongside P4-T2).
 - **Fix target:** Phase 1, step 7 (last, isolated).
 
 ### KI-010 — No `is_full_count` flag in DiffResult or API response
@@ -119,9 +121,8 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 - **Fix:** Add `assert result.diff.is_full_count == True` to the compare.py smoke test. Do in Phase 2 alongside test_benchmark.py.
 
 ### KI-015 — Excel row source file not labeled in diff output
-- **Status:** Unfixed
+- **Status:** FIXED (P1-T4, 2026-05-14) — as part of KI-009 fix, headers now use `{col}_before` (file 1) and `{col}_after` (file 2), which unambiguously identifies source.
 - **File:** `reporters.py`
-- **Impact:** The Excel diff sheet does not label which file each column value comes from. After P1-T4 adds both old and new values, the column headers must clearly indicate `{col}_file1` vs `{col}_file2`.
 
 ---
 
@@ -170,4 +171,7 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 ### KI-003 — Added/removed null misclassification → FIXED (P1-T2, 2026-05-14)
 ### KI-004 — `_infer_type()` always returns "string" → FIXED (P1-T3, 2026-05-14)
 ### KI-008 — `infer_schema_length=1000` causes type mis-inference → FIXED (P1-T8, 2026-05-14)
+### KI-009 — Excel shows only f1 values → FIXED (P1-T4, 2026-05-14)
 ### KI-010 — No `is_full_count` field → FIXED (P1-T5 implemented alongside P1-T1/T2, 2026-05-14)
+### KI-015 — Excel column source not labeled → FIXED (P1-T4, 2026-05-14; {col}_before/{col}_after headers)
+### KI-016 — modified_rows gap of 4,437 → CLOSED (benchmark artifact; engine correct; 2026-05-14)
