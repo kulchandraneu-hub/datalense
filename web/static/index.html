@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator.min.css">
+<script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 <title>DataLens — Compare &amp; Validate</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -363,6 +365,110 @@ td.vr-del-cell{width:28px;text-align:center}
 .c-grn{color:var(--grn)}
 .c-red{color:var(--red)}
 .c-yel{color:var(--yel)}
+
+/* ══════════════════════════════════════════════════════════
+   Tabulator — full dark-theme skin using project CSS tokens
+   (overrides the base tabulator.min.css white defaults)
+   ══════════════════════════════════════════════════════════ */
+/* root element */
+.tabulator{background:var(--sur)!important;border:1px solid var(--bdr)!important;
+  font-family:var(--font)!important;font-size:12px!important;color:var(--txt)!important}
+/* header */
+.tabulator .tabulator-header{background:var(--bg)!important;border-bottom:1px solid var(--bdr)!important;color:var(--mut)!important}
+.tabulator .tabulator-header .tabulator-col{background:var(--bg)!important;border-right:1px solid var(--bdr)!important;color:var(--mut)!important}
+.tabulator .tabulator-header .tabulator-col.tabulator-sortable:hover{background:var(--sur2)!important;cursor:pointer}
+.tabulator .tabulator-header .tabulator-col-content{padding:7px 10px!important}
+.tabulator .tabulator-header .tabulator-col-title{font-size:10px!important;letter-spacing:.08em!important;text-transform:uppercase!important;color:var(--mut)!important}
+/* sort arrows */
+.tabulator .tabulator-col .tabulator-col-content .tabulator-arrow{border-bottom-color:rgba(148,163,184,.4)!important;border-top-color:rgba(148,163,184,.4)!important}
+.tabulator .tabulator-col[aria-sort=ascending]  .tabulator-arrow{border-bottom-color:var(--blu)!important;border-top-color:transparent!important}
+.tabulator .tabulator-col[aria-sort=descending] .tabulator-arrow{border-top-color:var(--blu)!important;border-bottom-color:transparent!important}
+/* column-level filter inputs */
+.tabulator .tabulator-header-filter input,
+.tabulator .tabulator-header-filter select{background:var(--bg)!important;border:1px solid var(--bdr)!important;
+  color:var(--txt)!important;font-family:var(--font)!important;font-size:11px!important;padding:2px 6px!important;outline:none!important;border-radius:0!important}
+.tabulator .tabulator-header-filter input:focus,
+.tabulator .tabulator-header-filter select:focus{border-color:var(--blu)!important}
+/* table body scroll holder */
+.tabulator .tabulator-tableholder{background:var(--sur)!important}
+.tabulator .tabulator-tableHolder{background:var(--sur)!important}
+/* rows */
+.tabulator .tabulator-row{background:var(--sur)!important;border-bottom:1px solid rgba(51,65,85,.35)!important;color:var(--txt)!important}
+.tabulator .tabulator-row.tabulator-row-even{background:var(--sur)!important}
+.tabulator .tabulator-row:hover,
+.tabulator .tabulator-row.tabulator-row-even:hover{background:var(--sur2)!important}
+/* cells */
+.tabulator .tabulator-row .tabulator-cell{border-right:1px solid rgba(51,65,85,.2)!important;padding:5px 10px!important;overflow:hidden;text-overflow:ellipsis;color:var(--txt)!important}
+/* frozen column cells */
+.tabulator .tabulator-cell.tabulator-frozen,.tabulator .tabulator-cell.tabulator-frozen-left{
+  background:var(--sur)!important;border-right:1px solid var(--bdr)!important}
+.tabulator .tabulator-row:hover .tabulator-cell.tabulator-frozen{background:var(--sur2)!important}
+/* resize handle */
+.tabulator .tabulator-col-resize-handle{width:6px!important}
+.tabulator .tabulator-col-resize-handle:hover,.tabulator .tabulator-col-resize-handle.tabulator-col-resize-handle-prev:hover{background:var(--blu)!important;opacity:.5}
+/* empty-table placeholder */
+.tabulator .tabulator-placeholder-contents,.tabulator .tabulator-placeholder{color:var(--mut)!important}
+/* footer (page info, pagination) */
+.tabulator-footer,.tabulator .tabulator-footer{background:var(--bg)!important;border-top:1px solid var(--bdr)!important;color:var(--mut)!important}
+/* row type colouring — semantic diff classes */
+.tabulator .tabulator-row.row-add{background:rgba(34,197,94,.07)!important}
+.tabulator .tabulator-row.row-rem{background:rgba(239,68,68,.07)!important}
+.tabulator .tabulator-row.row-mod{background:rgba(245,158,11,.07)!important}
+.tabulator .tabulator-row.row-fmt{background:rgba(148,163,184,.05)!important}
+.tabulator .tabulator-row.row-add:hover{background:rgba(34,197,94,.13)!important}
+.tabulator .tabulator-row.row-rem:hover{background:rgba(239,68,68,.13)!important}
+.tabulator .tabulator-row.row-mod:hover{background:rgba(245,158,11,.13)!important}
+.tabulator .tabulator-row.row-fmt:hover{background:rgba(148,163,184,.09)!important}
+/* Word-wrap mode — toggled by JS adding .wrap-on to the .tabulator element */
+.tabulator.wrap-on .tabulator-cell{white-space:normal!important;word-break:break-word!important}
+/* light theme — CSS variables already flip; just undo the forced darks */
+[data-theme=light] .tabulator{background:var(--sur)!important;color:var(--txt)!important}
+[data-theme=light] .tabulator .tabulator-header,
+[data-theme=light] .tabulator .tabulator-col{background:var(--sur2)!important;color:var(--mut)!important}
+[data-theme=light] .tabulator .tabulator-row{background:var(--sur)!important;color:var(--txt)!important}
+[data-theme=light] .tabulator .tabulator-row.tabulator-row-even{background:var(--sur2)!important}
+[data-theme=light] .tabulator .tabulator-tableholder,
+[data-theme=light] .tabulator .tabulator-tableHolder{background:var(--sur)!important}
+[data-theme=light] .tabulator .tabulator-row .tabulator-cell{color:var(--txt)!important}
+[data-theme=light] .tabulator .tabulator-header-filter input,
+[data-theme=light] .tabulator .tabulator-header-filter select{background:var(--bg)!important;color:var(--txt)!important}
+
+/* ══ Interactive table section wrapper ══ */
+.itbl-section{margin-bottom:14px}
+.itbl-hd{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--bg);
+  border:1px solid var(--bdr);border-bottom:none;cursor:pointer;user-select:none;transition:background .15s}
+.itbl-hd:hover{background:var(--sur2)}
+.itbl-title{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);flex:1}
+.itbl-arr{font-size:10px;color:var(--mut);transition:transform .2s;flex-shrink:0}
+.itbl-arr.open{transform:rotate(90deg)}
+.itbl-count{font-size:11px;color:var(--mut);flex-shrink:0}
+/* toolbar row between header and table */
+.itbl-toolbar{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--sur2);
+  border:1px solid var(--bdr);border-bottom:none;flex-wrap:wrap}
+.itbl-body{display:block}
+.itbl-body.collapsed{display:none}
+/* global search within a table */
+.itbl-search{flex:0 1 200px;min-width:100px;background:var(--bg)!important;border:1px solid var(--bdr)!important;
+  color:var(--txt)!important;font-family:var(--font)!important;font-size:11px!important;
+  padding:3px 8px!important;height:24px!important;width:auto!important;outline:none!important}
+.itbl-search:focus{border-color:var(--blu)!important}
+/* change-type filter pills */
+.type-pills{display:flex;gap:3px;align-items:center;flex-wrap:wrap}
+.pill{background:var(--sur);border:1px solid var(--bdr);color:var(--mut);font-family:var(--font);
+  font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;cursor:pointer;
+  transition:all .1s;line-height:1.4}
+.pill:hover{color:var(--txt);border-color:var(--mut)}
+.pill.active{border-color:var(--blu);color:var(--blu);background:rgba(59,130,246,.1)}
+.pill.p-add.active{border-color:var(--grn);color:var(--grn);background:rgba(34,197,94,.1)}
+.pill.p-rem.active{border-color:var(--red);color:var(--red);background:rgba(239,68,68,.1)}
+.pill.p-mod.active{border-color:var(--yel);color:var(--yel);background:rgba(245,158,11,.1)}
+.pill.p-fmt.active{border-color:var(--mut);color:var(--txt);background:rgba(148,163,184,.1)}
+/* word-wrap toggle and copy buttons */
+.btn-wrap,.btn-copy-tsv{background:var(--sur);border:1px solid var(--bdr);color:var(--mut);font-family:var(--font);
+  font-size:10px;letter-spacing:.06em;padding:2px 8px;cursor:pointer;transition:all .1s;line-height:1.4;white-space:nowrap}
+.btn-wrap:hover,.btn-copy-tsv:hover{color:var(--txt);border-color:var(--mut)}
+.btn-wrap.on{border-color:var(--pur);color:var(--pur);background:rgba(139,92,246,.1)}
+.btn-copy-tsv.ok{color:var(--grn)!important;border-color:var(--grn)!important}
 </style>
 </head>
 <body>
@@ -713,8 +819,209 @@ const S = {
   jobId:null, sse:null, result:null, running:false,
   browseTarget:null, timerIv:null, timerStart:null,
   resultTab:'diff', lastBrowsePath:'', brParent:null,
+  _tabInit:{},
 };
 let histRuns = [];
+
+// ─────────────────────────────────── Tabulator registry
+const TBLS = {};
+const _tblFilters = {};
+
+function destroyAllTabulators() {
+  for (const k of Object.keys(TBLS)) { try { TBLS[k].destroy(); } catch {} delete TBLS[k]; }
+  for (const k of Object.keys(_tblFilters)) delete _tblFilters[k];
+}
+
+function mkTabulator(divId, data, columns, extra) {
+  if (TBLS[divId]) { try { TBLS[divId].destroy(); } catch {} }
+  const t = new Tabulator('#' + divId, {
+    data, columns,
+    layout: 'fitDataFill',
+    height: '390px',
+    resizableColumns: true,
+    movableColumns: true,
+    renderVertical: 'basic',
+    placeholder: '<span style="color:var(--mut);font-size:12px">No data</span>',
+    ...(extra || {})
+  });
+  TBLS[divId] = t;
+  return t;
+}
+
+// ── Section collapse / expand
+function toggleItblSection(hd) {
+  const sec = hd.closest('.itbl-section');
+  const body = sec.querySelector('.itbl-body');
+  const arr  = hd.querySelector('.itbl-arr');
+  const col  = body.classList.toggle('collapsed');
+  if (arr) arr.classList.toggle('open', !col);
+}
+
+// ── Word-wrap toggle (per table)
+function toggleWrap(tableId) {
+  const tDiv = document.getElementById(tableId);
+  const btn  = document.querySelector(`[data-wrap="${tableId}"]`);
+  if (!tDiv) return;
+  const tEl = tDiv.querySelector('.tabulator');
+  if (!tEl) return;
+  const on = tEl.classList.toggle('wrap-on');
+  if (btn) { btn.classList.toggle('on', on); btn.textContent = on ? '⏎ Wrap ON' : '⏎ Wrap OFF'; }
+  if (TBLS[tableId]) { try { TBLS[tableId].redraw(true); } catch {} }
+}
+
+// ── Copy visible (filtered) rows as TSV
+function copyTSV(tableId) {
+  const t = TBLS[tableId]; if (!t) return;
+  const cols = t.getColumnDefinitions().filter(c => c.field && !c.field.startsWith('_'));
+  const hdr  = cols.map(c => c.title).join('\t');
+  const rows = t.getData('active').map(row =>
+    cols.map(c => {
+      const v = row[c.field];
+      if (v == null) return '';
+      return String(v).replace(/<[^>]+>/g,'').replace(/\t/g,' ').replace(/\r?\n/g,' ').trim();
+    }).join('\t')
+  );
+  const tsv = [hdr, ...rows].join('\n');
+  const btn = document.querySelector(`[data-copy="${tableId}"]`);
+  const flash = (ok) => {
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = ok ? '✓ Copied' : '✗ Failed';
+    btn.classList.toggle('ok', ok);
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('ok'); }, 1800);
+  };
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(tsv).then(() => flash(true)).catch(() => flash(false));
+  } else {
+    const ta = Object.assign(document.createElement('textarea'), {value: tsv, style: 'position:fixed;opacity:0'});
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); flash(true); } catch { flash(false); }
+    document.body.removeChild(ta);
+  }
+}
+
+// ── Global search across all columns
+function filterTable(tableId, val) {
+  if (!_tblFilters[tableId]) _tblFilters[tableId] = {};
+  _tblFilters[tableId].search = val;
+  _applyTblFilters(tableId);
+}
+
+// ── Change-type pill filter (Diff — Sample Row Diffs)
+function setDiffTypeFilter(type, btn) {
+  document.querySelectorAll('.pill[data-pg="dt"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (!_tblFilters['tbl-sdiff']) _tblFilters['tbl-sdiff'] = {};
+  _tblFilters['tbl-sdiff'].type = type;
+  _applyTblFilters('tbl-sdiff');
+}
+
+function _applyTblFilters(tableId) {
+  const t = TBLS[tableId]; if (!t) return;
+  const f = _tblFilters[tableId] || {};
+  const q   = (f.search || '').trim().toLowerCase();
+  const typ = f.type || 'all';
+  t.clearFilter();
+  if (!q && typ === 'all') return;
+  t.setFilter((row) => {
+    if (typ !== 'all' && row.change_type !== typ) return false;
+    if (q && !Object.values(row).some(v => v != null && String(v).toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+
+// ── Init Tabulator tables for the Diff tab
+function initDiffTabulators(diff) {
+  if (document.getElementById('tbl-cdiff')) {
+    const colData = Object.entries(diff.column_diffs || {}).map(([name, s]) => ({
+      name,
+      modified:         s.modified || 0,
+      formatting_only:  s.formatting_only || 0,
+      change_rate:      parseFloat(((s.change_rate || 0) * 100).toFixed(2))
+    }));
+    mkTabulator('tbl-cdiff', colData, [
+      {title:'Column',    field:'name',            resizable:true, minWidth:140, headerFilter:'input'},
+      {title:'Modified',  field:'modified',         resizable:true, sorter:'number', hozAlign:'right', minWidth:90},
+      {title:'Fmt-only',  field:'formatting_only',  resizable:true, sorter:'number', hozAlign:'right', minWidth:90},
+      {title:'Change %',  field:'change_rate',      resizable:true, sorter:'number', hozAlign:'right', minWidth:90,
+       formatter(cell) {
+         const v = cell.getValue();
+         const c = v > 10 ? 'var(--red)' : v > 1 ? 'var(--yel)' : 'var(--grn)';
+         return `<span style="color:${c};font-weight:700">${v.toFixed(1)}%</span>`;
+       }}
+    ], {initialSort:[{column:'modified', dir:'desc'}]});
+  }
+  if (document.getElementById('tbl-sdiff')) {
+    const typeMap   = {added:'b-add', removed:'b-rem', modified:'b-mod', formatting_only:'b-fmt'};
+    const rowClsMap = {added:'row-add', removed:'row-rem', modified:'row-mod', formatting_only:'row-fmt'};
+    const smpData = (diff.sample_diffs || []).map(row => {
+      let changes = '';
+      if (row.change_type === 'modified' && row.columns_changed?.length) {
+        changes = row.columns_changed.map(c => {
+          const v1 = row.f1?.[c] ?? '∅', v2 = row.f2?.[c] ?? '∅';
+          return `<span style="margin-right:10px;white-space:nowrap"><span class="c-mut">${esc(c)}:</span> ` +
+                 `<span class="val-old">${esc(String(v1))}</span><span class="val-arr">→</span>` +
+                 `<span class="val-new">${esc(String(v2))}</span></span>`;
+        }).join('');
+      } else if (row.change_type === 'formatting_only' && row.columns_changed?.length) {
+        changes = `<span class="c-mut">${row.columns_changed.map(esc).join(', ')}</span>`;
+      } else if (row.change_type === 'added')   changes = '<span class="c-grn">new row</span>';
+      else if (row.change_type === 'removed')    changes = '<span class="c-red">deleted</span>';
+      return {key: row.key, change_type: row.change_type, changes};
+    });
+    mkTabulator('tbl-sdiff', smpData, [
+      {title:`Key (${(diff.key_columns||[]).join(', ')})`, field:'key', resizable:true, minWidth:160, headerFilter:'input'},
+      {title:'Type', field:'change_type', resizable:true, minWidth:110, width:120,
+       formatter(cell) {
+         const v = cell.getValue();
+         return `<span class="badge ${typeMap[v]||''}">${v.replace('_',' ')}</span>`;
+       },
+       headerFilter:'select',
+       headerFilterParams:{values:{'':'All','added':'Added','removed':'Removed','modified':'Modified','formatting_only':'Fmt-only'}, clearable:true}
+      },
+      {title:'Changes', field:'changes', resizable:true, minWidth:260, formatter:'html', variableHeight:true}
+    ], {
+      rowFormatter(row) {
+        const rc = rowClsMap[row.getData().change_type] || '';
+        if (rc) row.getElement().classList.add(rc);
+      }
+    });
+  }
+}
+
+// ── Init Tabulator tables for the Profile tab
+function initProfileTabulators(r1, r2) {
+  function toProfileData(cols) {
+    return cols.map(col => ({
+      name:                col.name,
+      inferred_type:       col.inferred_type || '—',
+      null_pct:            parseFloat(((col.null_variant_rate || 0) * 100).toFixed(2)),
+      total_null_variants: col.total_null_variants || 0,
+      distinct_count:      col.distinct_count || 0,
+      min_value:           col.min_value ?? '—',
+      max_value:           col.max_value ?? '—',
+      samples:             (col.sample_values || []).slice(0, 5).join(', ')
+    }));
+  }
+  const profCols = [
+    {title:'Column',   field:'name',                resizable:true, minWidth:140, frozen:true, headerFilter:'input'},
+    {title:'Type',     field:'inferred_type',        resizable:true, minWidth:90,  headerFilter:'input'},
+    {title:'Null %',   field:'null_pct',             resizable:true, minWidth:110, sorter:'number',
+     formatter(cell) {
+       const p = cell.getValue() || 0, hi = p > 50 ? 'hi' : '', w = Math.min(100, p).toFixed(1);
+       return `<div class="null-wrap"><div class="null-bar"><div class="null-fill ${hi}" style="width:${w}%"></div></div><span>${p.toFixed(1)}%</span></div>`;
+     }},
+    {title:'Nulls',    field:'total_null_variants',  resizable:true, minWidth:80,  sorter:'number', hozAlign:'right'},
+    {title:'Distinct', field:'distinct_count',        resizable:true, minWidth:80,  sorter:'number', hozAlign:'right'},
+    {title:'Min',      field:'min_value',             resizable:true, minWidth:110},
+    {title:'Max',      field:'max_value',             resizable:true, minWidth:110},
+    {title:'Samples',  field:'samples',               resizable:true, minWidth:200}
+  ];
+  if (r1?.profile?.columns?.length && document.getElementById('tbl-prof-f1'))
+    mkTabulator('tbl-prof-f1', toProfileData(r1.profile.columns), profCols, {});
+  if (r2?.profile?.columns?.length && document.getElementById('tbl-prof-f2'))
+    mkTabulator('tbl-prof-f2', toProfileData(r2.profile.columns), profCols, {});
+}
 
 // ─────────────────────────────────── API
 async function apiPost(url, body) {
@@ -985,6 +1292,8 @@ function selectFile(path) {
 async function startRun() {
   clearErr();
   if (!S.f1 || !S.f2) { showErr('Load both files first.'); return; }
+  destroyAllTabulators();
+  S._tabInit = {};
   S.running = true;
   lockInputs(true);
   ge('card-prog').style.display='block';
@@ -1153,6 +1462,11 @@ function buildResultTabs(result) {
   if (isCmp && result.diff) ge('rt-diff').innerHTML = buildDiffTab(result.diff);
   ge('rt-validation').innerHTML = buildValidationTab(result.validation_f1, result.validation_f2);
   ge('rt-profile').innerHTML = buildProfileTab(result.validation_f1, result.validation_f2);
+  // Register lazy Tabulator inits — each fires only when its tab is first made visible
+  S._tabInit = {};
+  if (isCmp && result.diff)
+    S._tabInit.diff = () => initDiffTabulators(result.diff);
+  S._tabInit.profile = () => initProfileTabulators(result.validation_f1, result.validation_f2);
 }
 
 function switchRT(tab) {
@@ -1161,54 +1475,62 @@ function switchRT(tab) {
   ['diff','validation','profile'].forEach(t=>{
     const el=ge(`rt-${t}`); if(el) el.style.display=t===tab?'block':'none';
   });
+  // Lazy-init: first visit to this tab triggers Tabulator creation (element must be visible first)
+  if (S._tabInit?.[tab]) {
+    const fn = S._tabInit[tab];
+    delete S._tabInit[tab];
+    requestAnimationFrame(() => requestAnimationFrame(fn));
+  } else {
+    // Re-visit: redraw to fix sizing after display:none/block cycle
+    requestAnimationFrame(() => {
+      Object.keys(TBLS).forEach(id => {
+        try {
+          const el = document.getElementById(id);
+          if (el?.closest(`#rt-${tab}`)) TBLS[id].redraw(true);
+        } catch {}
+      });
+    });
+  }
 }
 
 // ─────────────────────────────────── Diff tab
 function buildDiffTab(diff) {
-  let h='';
-  const cols=Object.entries(diff.column_diffs||{});
-  if (cols.length) {
-    h+='<div class="sec-head">Column Change Summary</div>';
-    h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr>';
-    h+='<th>Column</th><th>Modified</th><th>Fmt-only</th><th>Change Rate</th>';
-    h+='</tr></thead><tbody>';
-    cols.sort((a,b)=>(b[1].modified+b[1].formatting_only)-(a[1].modified+a[1].formatting_only));
-    for (const [name,s] of cols) {
-      const r=(s.change_rate*100).toFixed(1);
-      const rc=s.change_rate>.1?'c-red':s.change_rate>.01?'c-yel':'c-grn';
-      h+=`<tr><td><strong>${esc(name)}</strong></td><td>${s.modified.toLocaleString()}</td>
-          <td class="c-mut">${s.formatting_only.toLocaleString()}</td>
-          <td class="${rc}">${r}%</td></tr>`;
-    }
-    h+='</tbody></table></div>';
-  }
-  const smp=diff.sample_diffs||[];
-  h+='<div class="sec-head mt8">Sample Row Diffs</div>';
-  if (!smp.length) return h+'<div class="no-data">No differences found.</div>';
-  h+=`<div class="tbl-wrap"><table class="dtbl"><thead><tr>
-      <th>Key (${(diff.key_columns||[]).join(', ')})</th><th>Type</th><th>Changes</th>
-      </tr></thead><tbody>`;
-  for (const row of smp) {
-    const rc={'added':'row-add','removed':'row-rem','modified':'row-mod','formatting_only':'row-fmt'}[row.change_type]||'';
-    const bc={'added':'b-add','removed':'b-rem','modified':'b-mod','formatting_only':'b-fmt'}[row.change_type]||'';
-    let detail='';
-    if (row.change_type==='modified' && row.columns_changed?.length) {
-      detail=row.columns_changed.map(c=>{
-        const v1=row.f1?.[c]??'∅', v2=row.f2?.[c]??'∅';
-        return `<span style="white-space:nowrap"><span class="c-mut">${esc(c)}:</span> `+
-          `<span class="val-old">${esc(trunc(String(v1),20))}</span>`+
-          `<span class="val-arr">→</span>`+
-          `<span class="val-new">${esc(trunc(String(v2),20))}</span></span>`;
-      }).join('  ');
-    } else if (row.change_type==='formatting_only' && row.columns_changed?.length) {
-      detail=`<span class="c-mut">${row.columns_changed.map(esc).join(', ')}</span>`;
-    } else if (row.change_type==='added')   detail='<span class="c-grn">new row</span>';
-    else if (row.change_type==='removed')   detail='<span class="c-red">deleted</span>';
-    h+=`<tr class="${rc}"><td title="${ea(row.key)}">${esc(trunc(row.key,30))}</td>
-        <td><span class="badge ${bc}">${row.change_type.replace('_',' ')}</span></td>
-        <td>${detail}</td></tr>`;
-  }
-  return h+'</tbody></table></div>';
+  const nCols = Object.keys(diff.column_diffs || {}).length;
+  const nSmp  = (diff.sample_diffs || []).length;
+  return `
+<div class="itbl-section">
+  <div class="itbl-hd" onclick="toggleItblSection(this)">
+    <span class="itbl-arr open">▶</span>
+    <span class="itbl-title">Column Change Summary</span>
+    <span class="itbl-count">${nCols} column${nCols!==1?'s':''}</span>
+  </div>
+  <div class="itbl-toolbar">
+    <input class="itbl-search" placeholder="🔍 Filter…" oninput="filterTable('tbl-cdiff',this.value)" title="Search all columns">
+    <button class="btn-wrap" data-wrap="tbl-cdiff" onclick="toggleWrap('tbl-cdiff')">⏎ Wrap OFF</button>
+    <button class="btn-copy-tsv" data-copy="tbl-cdiff" onclick="copyTSV('tbl-cdiff')">⎘ Copy TSV</button>
+  </div>
+  <div class="itbl-body"><div id="tbl-cdiff"></div></div>
+</div>
+<div class="itbl-section">
+  <div class="itbl-hd" onclick="toggleItblSection(this)">
+    <span class="itbl-arr open">▶</span>
+    <span class="itbl-title">Sample Row Diffs</span>
+    <span class="itbl-count">${nSmp} sample${nSmp!==1?'s':''}</span>
+  </div>
+  <div class="itbl-toolbar">
+    <div class="type-pills">
+      <button class="pill active" data-pg="dt" onclick="setDiffTypeFilter('all',this)">All</button>
+      <button class="pill p-add"  data-pg="dt" onclick="setDiffTypeFilter('added',this)">Added</button>
+      <button class="pill p-rem"  data-pg="dt" onclick="setDiffTypeFilter('removed',this)">Removed</button>
+      <button class="pill p-mod"  data-pg="dt" onclick="setDiffTypeFilter('modified',this)">Modified</button>
+      <button class="pill p-fmt"  data-pg="dt" onclick="setDiffTypeFilter('formatting_only',this)">Fmt-only</button>
+    </div>
+    <input class="itbl-search" placeholder="🔍 Filter rows…" oninput="filterTable('tbl-sdiff',this.value)" title="Search key, type, and changes">
+    <button class="btn-wrap" data-wrap="tbl-sdiff" onclick="toggleWrap('tbl-sdiff')">⏎ Wrap OFF</button>
+    <button class="btn-copy-tsv" data-copy="tbl-sdiff" onclick="copyTSV('tbl-sdiff')">⎘ Copy TSV</button>
+  </div>
+  <div class="itbl-body"><div id="tbl-sdiff"></div></div>
+</div>`;
 }
 
 // ─────────────────────────────────── Validation tab
@@ -1249,35 +1571,29 @@ function toggleSev(hd) {
 
 // ─────────────────────────────────── Profile tab
 function buildProfileTab(r1, r2) {
-  let h='';
-  if (r1) { h+='<div class="sec-head">Reference File — Column Profile</div>'+buildProfileTable(r1.profile?.columns||[]); }
-  if (r2) { h+='<div class="sec-head mt8">Candidate File — Column Profile</div>'+buildProfileTable(r2.profile?.columns||[]); }
-  return h||'<div class="no-data">No profile data.</div>';
+  let h = '';
+  const n1 = r1?.profile?.columns?.length || 0;
+  const n2 = r2?.profile?.columns?.length || 0;
+  if (n1) h += _profileSection('tbl-prof-f1', 'Reference File — Column Profile', n1);
+  if (n2) h += _profileSection('tbl-prof-f2', 'Candidate File — Column Profile', n2);
+  return h || '<div class="no-data">No profile data.</div>';
 }
 
-function buildProfileTable(cols) {
-  if (!cols.length) return '<div class="no-data">No columns.</div>';
-  let h='<div class="tbl-wrap"><table class="dtbl"><thead><tr>';
-  h+='<th>Column</th><th>Type</th><th>Null %</th><th>Nulls</th><th>Distinct</th><th>Min</th><th>Max</th><th>Samples</th>';
-  h+='</tr></thead><tbody>';
-  for (const col of cols) {
-    const pct=(col.null_variant_rate*100).toFixed(1);
-    const hi=col.null_variant_rate>.5?'hi':'';
-    const fillW=Math.min(100,col.null_variant_rate*100).toFixed(1);
-    const samples=(col.sample_values||[]).slice(0,3).map(v=>esc(String(v))).join(', ');
-    h+=`<tr>
-      <td><strong>${esc(col.name)}</strong></td>
-      <td class="c-mut">${esc(col.inferred_type||'—')}</td>
-      <td><div class="null-wrap"><div class="null-bar"><div class="null-fill ${hi}" style="width:${fillW}%"></div></div><span>${pct}%</span></div></td>
-      <td class="c-mut">${(col.total_null_variants||0).toLocaleString()}</td>
-      <td class="c-mut">${(col.distinct_count||0).toLocaleString()}</td>
-      <td class="c-mut" title="${ea(col.min_value||'')}">${esc(trunc(col.min_value,14))}</td>
-      <td class="c-mut" title="${ea(col.max_value||'')}">${esc(trunc(col.max_value,14))}</td>
-      <td class="c-mut" title="${ea(samples)}">${esc(trunc(samples,32))}</td>
-    </tr>`;
-  }
-  return h+'</tbody></table></div>';
-}
+function _profileSection(tableId, title, count) {
+  return `<div class="itbl-section">
+  <div class="itbl-hd" onclick="toggleItblSection(this)">
+    <span class="itbl-arr open">▶</span>
+    <span class="itbl-title">${title}</span>
+    <span class="itbl-count">${count} column${count!==1?'s':''}</span>
+  </div>
+  <div class="itbl-toolbar">
+    <input class="itbl-search" placeholder="🔍 Filter columns…" oninput="filterTable('${tableId}',this.value)" title="Search column names, types, values">
+    <button class="btn-wrap" data-wrap="${tableId}" onclick="toggleWrap('${tableId}')">⏎ Wrap OFF</button>
+    <button class="btn-copy-tsv" data-copy="${tableId}" onclick="copyTSV('${tableId}')">⎘ Copy TSV</button>
+  </div>
+  <div class="itbl-body"><div id="${tableId}"></div></div>
+</div>`
+;}
 
 // ─────────────────────────────────── History
 async function loadHistory() {
