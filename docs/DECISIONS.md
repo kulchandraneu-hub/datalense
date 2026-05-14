@@ -159,6 +159,19 @@ _Format: date, decision, rationale, alternatives considered._
 
 ---
 
+### D-013 — Phase 2 test suite: synthetic fixtures for exact count assertions; demo/benchmark for integration
+- **Date:** 2026-05-15
+- **Status:** IMPLEMENTED (Phase 2 complete)
+- **Decision:** Three-tier fixture strategy:
+  1. **Synthetic fixtures** (`tests/fixtures/*.csv`, 3–5 rows, no date cols, no type drift) — exact equality assertions with zero ambiguity. Used for: added/removed/modified/formatting_only counts, sentinel null detection, null introduction, duplicate key degradation, ignore_case reclassification.
+  2. **demo_small files** (10/11 rows) — integration assertions on a real-world mix. Used for: validation checks (Mixed Types, Duplicate Keys, Null profile), exact counts where all interactions are traced.
+  3. **100k / 500k benchmark files** — regression gate and milestone gate. All Phase 1 acceptance criteria locked in here.
+- **Rationale:** Demo files have complex interactions (Cartesian from duplicate key, Int→Float type promotion, mixed date formats) that make count assertions fragile without full analysis. Synthetic fixtures isolate each behavior so a failure pinpoints exactly what broke. Demo and benchmark files serve as integration/acceptance layers.
+- **Marker strategy:** `quick` (~11s), `regression` (~26s), `benchmark` (~5min). Developers run `quick` on every save and `regression` before committing.
+- **KI-014 fix included:** `compare.py` smoke test now asserts `is_full_count is True`.
+
+---
+
 ## Invariants (never violate these)
 
 These are non-negotiable constraints carried forward from the original architecture:

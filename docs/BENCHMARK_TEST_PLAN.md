@@ -5,21 +5,36 @@ _Do NOT move, rename, or modify the benchmark files._
 
 ---
 
-## Benchmark Workflow
+## Test Execution
+
+### pytest (Phase 2 — preferred for regression work)
+
+```bash
+pytest -m quick        # 60 tests, ~11s  — synthetic + demo fixtures, run after every change
+pytest -m regression   # 11 tests, ~26s  — 100k benchmark regression gate
+pytest -m benchmark    # 17 tests, ~5min — 500k milestone gate, run before phase completion
+pytest                 # all 88 tests    — full suite
+```
+
+| Marker | Files | When to run |
+|--------|-------|-------------|
+| `quick` | synthetic 3-10 row fixtures + demo_small | After every code change |
+| `regression` | `benchmark_100k_file_{A,B}.csv` | Before committing; catches regressions fast |
+| `benchmark` | `benchmark_500k_file_{A,B}.csv` | Before marking a phase complete |
+
+### benchmark_p1.py (Phase 1 legacy runner — still useful for quick print-output)
 
 ```
-python benchmark_p1.py            # 100k quick mode (default) — fast regression
-python benchmark_p1.py --full     # 500k full milestone mode — architecture gate
+python benchmark_p1.py            # 100k quick mode (default)
+python benchmark_p1.py --full     # 500k full milestone mode
 python benchmark_p1.py --all      # both in sequence
 ```
 
-**When to use which:**
-
 | Mode | When to use |
 |------|-------------|
-| `--quick` (100k) | After every code change during Phase 1 development — fast feedback loop |
-| `--full` (500k) | After completing a Phase 1 task — milestone gate before moving to next task |
-| `--all` | Before marking a phase complete, before PRs |
+| `--quick` (100k) | Fast human-readable output during development |
+| `--full` (500k) | Print-format milestone verification |
+| `--all` | Before PRs when you want a readable combined report |
 
 **Regression rule:** If a previously-passing assertion flips to FAIL, the code broke something. Fix the code, not the expected value, unless the spec changed.
 
@@ -148,9 +163,10 @@ assert (diff.added_rows + diff.removed_rows + diff.modified_rows
 salary_profile = next(c for c in report_b.profile.columns if c.name == "Salary")
 assert salary_profile.total_null_variants > 0
 assert salary_profile.null_variant_rate > 0.0
-# Should trigger WARNING or ERROR based on threshold
-salary_checks = [c for c in report_b.checks if c.column == "Salary" and "Null" in c.name]
-assert len(salary_checks) > 0
+# Note (P2-T4, 2026-05-15): 9,897 / 500,000 ≈ 2% — below the null_warn_threshold of 50%.
+# "High Null Rate" check does NOT fire at this rate.  The null count is surfaced in the
+# profile (total_null_variants > 0) but no WARNING/ERROR check is emitted.
+# To trigger the check, a business rule with max_null_rate < 0.02 would need to be set.
 ```
 
 ### Validation — File B JoinDate Mixed Types

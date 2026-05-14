@@ -1,0 +1,26 @@
+
+Small Demo Dataset — Capability Showcase
+
+File A:
+- 10 clean employee records
+
+File B Includes:
+1. Semantic numeric change
+2. Formatting-only numeric difference (62000 vs 62000.0)
+3. Whitespace-only change
+4. Case-only change
+5. Mixed date format
+6. Null injection
+7. Semantic email change
+8. Duplicate key row
+9. Removed row
+10. Added row
+11. Column order difference
+
+Recommended Usage:
+- Demo to stakeholders
+- Quick UI verification
+- Manual eye-testing
+- Edge-case validation
+- Export testing
+- Before/after diff showcase

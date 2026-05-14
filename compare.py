@@ -293,6 +293,7 @@ if __name__ == "__main__":
 
         assert result.diff.removed_rows == 1, f"Expected 1 removed, got {result.diff.removed_rows}"
         assert result.diff.added_rows == 1, f"Expected 1 added, got {result.diff.added_rows}"
+        assert result.diff.is_full_count is True, f"Expected is_full_count=True, got {result.diff.is_full_count}"
         assert result.html_report_path and result.html_report_path.exists()
         assert result.json_diff_path and result.json_diff_path.exists()
         assert result.csv_diff_path and result.csv_diff_path.exists()

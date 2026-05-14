@@ -1,6 +1,6 @@
 # Implementation Roadmap — DataLens
 
-_Created: 2026-05-14. Last updated: 2026-05-14 (Phase 1 Step 5 — P1-T8 complete)._
+_Created: 2026-05-14. Last updated: 2026-05-15 (Phase 2 — regression test suite complete)._
 
 ---
 
@@ -89,26 +89,44 @@ _Created: 2026-05-14. Last updated: 2026-05-14 (Phase 1 Step 5 — P1-T8 complet
 **Goal:** Automated tests that lock in Phase 1 correctness permanently.
 **Prerequisite:** Phase 1 complete.
 
-### P2-T1: Create `tests/test_benchmark.py` `[ ]`
-- Pytest test module using both 500k benchmark files.
-- Hard assertions against known expected counts (see BENCHMARK_TEST_PLAN.md).
-- Marks each test with a phase tag so failures are attributable.
+### P2-T1: Create `tests/test_benchmark_500k.py` `[x]`
+- **Completed:** 2026-05-15
+- Pytest module using 500k benchmark files with all hard assertions from BENCHMARK_TEST_PLAN.md.
+- Also created `tests/test_regression_100k.py` (100k quick regression, ~26s) and `tests/test_diff_semantics.py` / `tests/test_validation.py` / `tests/test_exports.py` (quick synthetic tests, ~11s total).
+- Markers: `quick`, `regression`, `benchmark` — run subsets via `pytest -m quick`, etc.
 
-### P2-T2: Test formatting-only vs semantic separation `[ ]`
-- Assert that rows where Salary changed from integer to float format with same value (`50000` → `50000.0`) are classified as `formatting_only` when numeric normalization is active.
-- Assert that rows where Salary value genuinely changed appear as `modified`.
+### P2-T2: Test formatting-only vs semantic separation `[x]`
+- **Completed:** 2026-05-15
+- `test_benchmark_500k.py::test_formatting_only_rows_exact`: asserts formatting_only_rows == 449,437.
+- `test_benchmark_500k.py::test_formatting_only_includes_salary_format_rows`: asserts >= 4,437.
+- `test_benchmark_500k.py::test_modified_plus_formatting_only_equals_matched_rows`: conservation check.
+- `test_diff_semantics.py::TestSemanticVsFormattingOnly`: clean synthetic fixture verifies ignore_case reclassifies case-only rows from modified → formatting_only.
 
-### P2-T3: Test JoinDate mixed-type detection `[ ]`
-- Assert that `JoinDate` in benchmark file B is flagged as "Mixed Types" after P1-T3 fix.
-- Assert that the mixed-type check fires at the validation level (not just profiler level).
+### P2-T3: Test JoinDate mixed-type detection `[x]`
+- **Completed:** 2026-05-15
+- `test_benchmark_500k.py::test_joindate_mixed_types_in_f2`: asserts Mixed Types check fires for JoinDate in file B.
+- `test_validation.py::TestMixedTypesDetection`: demos demo_small JoinDate (1/11 non-ISO), verifies check fires AND does not fire on clean file A.
+- `test_regression_100k.py::test_lastpurchasedate_mixed_types_in_f2`: regression on 100k LastPurchaseDate.
 
-### P2-T4: Test null Salary detection `[ ]`
-- Assert that benchmark file B Salary column has `null_variant_rate > 0`.
-- Assert that the "High Null Rate" check fires at appropriate threshold.
+### P2-T4: Test null Salary detection `[x]`
+- **Completed:** 2026-05-15
+- `test_benchmark_500k.py::test_salary_null_variants_in_f2_profile`: asserts total_null_variants > 0 and null_variant_rate > 0.
+- Note: 9,897 / 500,000 ≈ 2% — below the 50% warn threshold. "High Null Rate" check does NOT fire.
+  Corrected the BENCHMARK_TEST_PLAN assertion accordingly (see notes in that file).
 
-### P2-T5: Test sentinel-based added/removed count `[ ]`
-- Create a small synthetic CSV where one file has null in a non-key column, other file doesn't have the row.
-- Assert correct classification (not confused with null-value modified row).
+### P2-T5: Test sentinel-based added/removed count `[x]`
+- **Completed:** 2026-05-15
+- `tests/fixtures/null_nonkey_A.csv`: row 3 has null Score (non-key column).
+- `tests/fixtures/null_nonkey_B.csv`: row 3 absent.
+- `test_diff_semantics.py::TestSentinelNullNonKey`: asserts removed=1, added=0, modified=0, is_full_count=True.
+
+### Phase 2 completion note (2026-05-15)
+```
+pytest -m quick       → 60 tests, ~11s   (synthetic + demo fixtures)
+pytest -m regression  → 11 tests, ~26s   (100k benchmark)
+pytest -m benchmark   → 17 tests, ~5 min (500k milestone gate)
+```
+Also fixed KI-014: `compare.py` smoke test now asserts `is_full_count is True`.
 
 ---
 

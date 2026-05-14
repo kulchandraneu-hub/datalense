@@ -1,0 +1,11 @@
+EmployeeID,FirstName,LastName,Email,Country,Department,Salary,JoinDate,Status
+1001,Aman,Sharma,aman@corp.com,India,Sales,50000,2023-01-10,Active
+1002,Priya,Patel,priya@corp.com,India,HR,62000,2022-11-15,Active
+1003,John,Smith,john@corp.com,USA,Finance,70000,2021-06-01,Inactive
+1004,Sara,Lee,sara@corp.com,UK,IT,82000,2020-09-20,Active
+1005,Fatima,Khan,fatima@corp.com,Canada,Marketing,58000,2023-03-11,Leave
+1006,Wei,Chen,wei@corp.com,Singapore,Ops,91000,2021-12-01,Active
+1007,David,Brown,david@corp.com,USA,Finance,64000,2022-01-01,Active
+1008,Neha,Verma,neha@corp.com,India,HR,61000,2021-07-14,Active
+1009,Carlos,Diaz,carlos@corp.com,Spain,Sales,54000,2023-02-22,Inactive
+1010,Emily,Stone,emily@corp.com,UK,IT,88000,2020-05-18,Active
