@@ -553,6 +553,17 @@ td.vr-del-cell{width:28px;text-align:center}
 .vset-stat.sc{border-color:var(--blu);background:rgba(59,130,246,.08);color:var(--blu)}
 .vset-samp{margin-top:6px;background:var(--sur2);border:1px solid var(--bdr);padding:6px 10px;
   font-size:11px;max-height:150px;overflow-y:auto;display:none;word-break:break-all;color:var(--mut);line-height:1.6}
+
+/* ── Win-1: Compare Plan summary ── */
+.cplan{margin-top:10px;border-top:1px solid var(--bdr);padding-top:10px;display:none}
+.cplan-title{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-bottom:7px}
+.cplan-rows{display:flex;flex-direction:column;gap:3px}
+.cplan-row{display:flex;gap:8px;align-items:baseline;font-size:11px;line-height:1.5}
+.cplan-key{color:var(--mut);min-width:82px;flex-shrink:0;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.cplan-val{color:var(--txt);flex:1}
+/* Win-2: Column exclude checkboxes */
+.cm-tag-chk{accent-color:var(--blu);cursor:pointer;margin-right:3px;vertical-align:middle;width:11px;height:11px;flex-shrink:0}
+.cm-tag.excluded{opacity:.38;text-decoration:line-through}
 </style>
 </head>
 <body>
@@ -692,12 +703,12 @@ td.vr-del-cell{width:28px;text-align:center}
     <div class="opts-bar" id="compare-opts">
       <div class="opts-checks">
         <label class="opts-lbl">
-          <input type="checkbox" id="ign-case">
+          <input type="checkbox" id="ign-case" onchange="renderComparePlan()">
           Uppercase = lowercase
           <i class="opt-tip" data-tip="'SMITH' and 'Smith' will be treated as the same value">?</i>
         </label>
         <label class="opts-lbl">
-          <input type="checkbox" id="ign-ws">
+          <input type="checkbox" id="ign-ws" onchange="renderComparePlan()">
           Ignore extra spaces
           <i class="opt-tip" data-tip="Spaces at the start or end of a value are ignored (' John ' = 'John')">?</i>
         </label>
@@ -714,6 +725,12 @@ td.vr-del-cell{width:28px;text-align:center}
         <button class="btn-sm" onclick="toggleColMapPanel()" id="cm-toggle-btn">Hide</button>
       </div>
       <div class="cm-groups" id="cm-groups"></div>
+    </div>
+
+    <!-- Compare Plan (Win-1) — shown in Compare tab when both files are loaded -->
+    <div id="compare-plan" class="cplan">
+      <div class="cplan-title">Compare Plan</div>
+      <div id="compare-plan-body" class="cplan-rows"></div>
     </div>
 
     <!-- Validation Rules (shown only in Validate tab) -->
@@ -1232,6 +1249,7 @@ function switchTab(tab) {
   const lbl1 = ge('lbl-f1'); if (lbl1) lbl1.textContent = l1;
   const lbl2 = ge('lbl-f2'); if (lbl2) lbl2.textContent = l2;
 
+  renderComparePlan();
   checkRunnable();
 }
 
@@ -1615,6 +1633,7 @@ async function _startNextRun() {
   const keyColsF1 = getSelectedKeys('f1');
   const keyColsF2 = getSelectedKeys(slot2);
   const colMap = buildColMapPayload();
+  const compareColumns = getCompareColumns();
 
   try {
     let data;
@@ -1624,6 +1643,7 @@ async function _startNextRun() {
         sheet1: S.f1.sheet_name||null, sheet2: info2.sheet_name||null,
         key_columns_f1: keyColsF1, key_columns_f2: keyColsF2,
         column_map: colMap.length ? colMap : null,
+        compare_columns: compareColumns,
         ignore_case: ge('ign-case').checked, ignore_whitespace: ge('ign-ws').checked,
       });
     } else {
@@ -2049,9 +2069,33 @@ function showHistRun(i) {
 }
 
 // ─────────────────────────────────── Export
-function exportCSV() {
-  const a=document.createElement('a'); a.href='/api/export-csv'; a.download='';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+async function exportCSV() {
+  const btn = ge('exp-btn');
+  if (!btn || btn.disabled) return;
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Exporting…';
+  try {
+    const resp = await fetch('/api/export-csv');
+    if (!resp.ok) {
+      const j = await resp.json().catch(() => ({}));
+      throw new Error(j.detail || resp.statusText);
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = resp.headers.get('content-disposition') || '';
+    const m = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    a.download = m ? m[1].replace(/['"]/g,'') : 'diff.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    showErr('Export failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
 }
 
 // ─────────────────────────────────── Errors
@@ -2089,6 +2133,7 @@ function onKeyChange() {
     const opt = [...sel2.options].find(o => o.value === v1);
     if (opt) sel2.value = v1;
   }
+  renderComparePlan();
 }
 
 // ─────────────────────────────────── F-3: Column mapping panel
@@ -2124,7 +2169,7 @@ function buildColMappingPanel() {
   const onlyB = cols2.filter(c => !set1.has(c));
   const fuzzy = fuzzyMatchCols(onlyA, onlyB);
 
-  S.colMap = {matched, onlyA, onlyB, fuzzy, userMapped: [], rejectedFuzzy: new Set()};
+  S.colMap = {matched, onlyA, onlyB, fuzzy, userMapped: [], rejectedFuzzy: new Set(), excluded: new Set()};
   S.colMapVisible = true;
   renderColMappingPanel();
 }
@@ -2138,16 +2183,26 @@ function renderColMappingPanel() {
     panel.style.display = S.colMapVisible ? '' : 'none';
   }
 
-  const {matched, onlyA, onlyB, fuzzy, userMapped, rejectedFuzzy} = S.colMap;
+  const {matched, onlyA, onlyB, fuzzy, userMapped, rejectedFuzzy, excluded} = S.colMap;
   const activeFuzzy = fuzzy.filter(f => !rejectedFuzzy.has(f.a+'→'+f.b));
 
   let h = '';
 
-  // Matched
+  // Matched — Win-2: each column has a checkbox to include/exclude from compare
+  const exclCount = excluded.size;
+  const matchedHd = exclCount
+    ? `✅ Matched (${matched.length}) — <span style="color:var(--yel)">${exclCount} excluded from compare</span>`
+    : `✅ Matched (${matched.length})`;
   h += `<div class="cm-group">
-    <div class="cm-group-hd">✅ Matched (${matched.length})</div>
+    <div class="cm-group-hd">${matchedHd}</div>
     <div class="cm-tags">${matched.length
-      ? matched.map(c=>`<span class="cm-tag ok">${esc(c)}</span>`).join('')
+      ? matched.map(c => {
+          const isExcl = excluded.has(c);
+          return `<span class="cm-tag ok${isExcl?' excluded':''}">` +
+            `<input type="checkbox" class="cm-tag-chk" ${isExcl?'':'checked'} ` +
+            `onclick="cmToggleExclude('${ea(c)}')" title="${isExcl?'Click to include in compare':'Click to exclude from compare'}">` +
+            `${esc(c)}</span>`;
+        }).join('')
       : '<span class="cm-empty">none</span>'}</div>
   </div>`;
 
@@ -2189,6 +2244,7 @@ function renderColMappingPanel() {
   }
 
   groups.innerHTML = h;
+  renderComparePlan();
 }
 
 function cmAccept(idx) {
@@ -2227,6 +2283,75 @@ function toggleColMapPanel() {
 function buildColMapPayload() {
   if (!S.colMap) return [];
   return (S.colMap.userMapped || []).map(m => ({f1: m.f1, f2: m.f2}));
+}
+
+// ── Win-2: toggle a matched column in/out of the compare
+function cmToggleExclude(col) {
+  if (!S.colMap) return;
+  if (S.colMap.excluded.has(col)) S.colMap.excluded.delete(col);
+  else S.colMap.excluded.add(col);
+  renderColMappingPanel();
+  // renderColMappingPanel already calls renderComparePlan()
+}
+
+// ── Win-2: build compare_columns list; null = compare all (no filter sent to backend)
+function getCompareColumns() {
+  if (!S.colMap) return null;
+  const { matched, excluded, userMapped } = S.colMap;
+  if (!excluded.size) return null;
+  // Collect all columns that will exist in shared_cols after rename (f1 namespace)
+  const allComparable = [...matched, ...userMapped.map(m => m.f1)];
+  return [...new Set(allComparable.filter(c => !excluded.has(c)))];
+}
+
+// ── Win-1: render the Compare Plan summary card
+function renderComparePlan() {
+  const p = ge('compare-plan');
+  if (!p) return;
+  if (S.tab !== 'compare' || !S.f1 || !S.f2 || !S.colMap) {
+    p.style.display = 'none';
+    return;
+  }
+
+  const { matched, onlyA, onlyB, excluded, userMapped } = S.colMap;
+  const exclCount = excluded.size;
+  const mappedCount = userMapped.length;
+  // Columns that will be diff'd: matched-excluded + user-mapped f1 names
+  const compareCount = matched.length - exclCount + mappedCount;
+
+  // Key line
+  const k1 = getSelectedKeys('f1');
+  const k2 = getSelectedKeys('f2');
+  let keyStr;
+  if (k1 && k2 && JSON.stringify(k1) !== JSON.stringify(k2)) {
+    keyStr = `${k1.join('+')} ↔ ${k2.join('+')} <span style="color:var(--mut)">(mapped)</span>`;
+  } else if (k1) {
+    keyStr = k1.join(' + ');
+  } else {
+    keyStr = '<span style="color:var(--mut)">Auto-detect</span>';
+  }
+
+  // Columns line
+  const colParts = [`<strong>${compareCount}</strong> compared`];
+  if (exclCount)   colParts.push(`<span style="color:var(--yel)">${exclCount} excluded</span>`);
+  if (onlyA.length) colParts.push(`<span style="color:var(--mut)">${onlyA.length} only in Ref (ignored)</span>`);
+  if (onlyB.length) colParts.push(`<span style="color:var(--mut)">${onlyB.length} only in Cand (ignored)</span>`);
+  if (mappedCount)  colParts.push(`<span style="color:var(--blu)">${mappedCount} renamed</span>`);
+
+  // Ignore rules line
+  const ignParts = [];
+  if (ge('ign-case')?.checked)  ignParts.push('case-insensitive');
+  if (ge('ign-ws')?.checked)    ignParts.push('ignore leading/trailing spaces');
+  const ignoreStr = ignParts.length ? ignParts.join(', ') : '<span style="color:var(--mut)">none</span>';
+
+  const body = ge('compare-plan-body');
+  if (body) body.innerHTML =
+    `<div class="cplan-row"><span class="cplan-key">Mode</span><span class="cplan-val">Master-Data (row diff by key)</span></div>` +
+    `<div class="cplan-row"><span class="cplan-key">Key</span><span class="cplan-val">${keyStr}</span></div>` +
+    `<div class="cplan-row"><span class="cplan-key">Columns</span><span class="cplan-val">${colParts.join(' · ')}</span></div>` +
+    `<div class="cplan-row"><span class="cplan-key">Ignore rules</span><span class="cplan-val">${ignoreStr}</span></div>`;
+
+  p.style.display = '';
 }
 
 // ─────────────────────────────────── F-4: Value Set Compare

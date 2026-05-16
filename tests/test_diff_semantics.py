@@ -8,10 +8,16 @@ Coverage:
   - Null introduction (value → null transition) classified as modified
   - Duplicate key degradation forces is_full_count=False
   - Demo-small integration: real-world mix of all change types
+  - compare_columns filter: only selected columns contribute to modified counts
 
 Marker: quick — all fixtures are 3–10 rows; entire class runs in < 2 seconds.
 """
+import sys
+from pathlib import Path
 import pytest
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from compare import CompareRequest, run_compare  # noqa: E402
 
 pytestmark = pytest.mark.quick
 
@@ -188,3 +194,92 @@ class TestDemoSmall:
     def test_rows_scanned(self, demo_result):
         # 10 both-present join rows (incl. 2 from 1008 Cartesian) + 1 added + 1 removed = 12
         assert demo_result.diff.rows_scanned == 12
+
+
+# ─── compare_columns filter (Win-2) ──────────────────────────────────────────
+
+_FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _run_cc(compare_columns):
+    """Run clean fixture with a compare_columns subset."""
+    return run_compare(CompareRequest(
+        file1=_FIXTURES / "clean_A.csv",
+        file2=_FIXTURES / "clean_B.csv",
+        key_columns=["ID"],
+        compare_columns=compare_columns,
+    ))
+
+
+class TestCompareColumns:
+    """
+    Win-2 acceptance tests: compare_columns restricts which non-key columns are
+    considered when classifying modified/formatting_only rows.
+
+    clean_A.csv / clean_B.csv differences (key=ID):
+      ID=1: Value  100 → 150        (modified — Value column)
+      ID=2: Category B  → b         (modified — Category column, case-sensitive)
+      ID=5: removed
+      ID=6: added
+
+    compare_columns=["Value"]    → only Value compared; ID=2 Category change is invisible
+    compare_columns=["Category"] → only Category compared; ID=1 Value change is invisible
+    compare_columns=["Name"]     → no changes in Name → modified=0
+    compare_columns=None         → full compare (baseline, must match clean_result fixture)
+    """
+
+    def test_none_matches_full_compare(self, clean_result):
+        # compare_columns=None is the default; must produce identical counts
+        r = _run_cc(None)
+        assert r.diff.added_rows == clean_result.diff.added_rows
+        assert r.diff.removed_rows == clean_result.diff.removed_rows
+        assert r.diff.modified_rows == clean_result.diff.modified_rows
+
+    def test_value_only_sees_one_modified(self):
+        # Only Value column compared: ID=1 (100→150) is modified; ID=2 (B→b) is invisible
+        r = _run_cc(["Value"])
+        assert r.diff.modified_rows == 1
+
+    def test_value_only_added_removed_unchanged(self):
+        # added/removed are key-level — unaffected by compare_columns
+        r = _run_cc(["Value"])
+        assert r.diff.added_rows == 1
+        assert r.diff.removed_rows == 1
+
+    def test_value_only_column_diffs_scoped(self):
+        # column_diffs must only contain the columns in compare_columns
+        r = _run_cc(["Value"])
+        assert "Value" in r.diff.column_diffs
+        assert "Category" not in r.diff.column_diffs
+
+    def test_category_only_sees_one_modified(self):
+        # Only Category compared: ID=2 (B→b) is modified; ID=1 (100→150) is invisible
+        r = _run_cc(["Category"])
+        assert r.diff.modified_rows == 1
+
+    def test_category_only_column_diffs_scoped(self):
+        r = _run_cc(["Category"])
+        assert "Category" in r.diff.column_diffs
+        assert "Value" not in r.diff.column_diffs
+
+    def test_name_only_no_modified(self):
+        # Name is identical for all matched rows → no modified rows when only Name compared
+        r = _run_cc(["Name"])
+        assert r.diff.modified_rows == 0
+        assert r.diff.formatting_only_rows == 0
+
+    def test_name_only_added_removed_still_correct(self):
+        r = _run_cc(["Name"])
+        assert r.diff.added_rows == 1
+        assert r.diff.removed_rows == 1
+
+    def test_is_full_count_preserved(self):
+        # compare_columns must not degrade is_full_count
+        r = _run_cc(["Value"])
+        assert r.diff.is_full_count is True
+
+    def test_both_columns_matches_full(self, clean_result):
+        # Explicitly listing both non-key columns should produce same counts as default
+        r = _run_cc(["Value", "Category"])
+        assert r.diff.modified_rows == clean_result.diff.modified_rows
+        assert r.diff.added_rows == clean_result.diff.added_rows

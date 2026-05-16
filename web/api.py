@@ -110,6 +110,7 @@ class CompareAPIRequest(BaseModel):
     key_columns_f1: Optional[list[str]] = None
     key_columns_f2: Optional[list[str]] = None
     column_map: Optional[list[dict]] = None
+    compare_columns: Optional[list[str]] = None
     ignore_case: bool = False
     ignore_whitespace: bool = False
     output_dir: Optional[str] = None
@@ -519,6 +520,7 @@ def _run_compare_job(job_id: str, req: CompareAPIRequest) -> None:
             ignore_rules=IgnoreRules(case=req.ignore_case, whitespace=req.ignore_whitespace),
             output_dir=out_dir,
             column_map=col_map or None,
+            compare_columns=req.compare_columns or None,
         )
 
         result = run_compare(core_req, progress=progress, cancel_token=job.cancel_token)

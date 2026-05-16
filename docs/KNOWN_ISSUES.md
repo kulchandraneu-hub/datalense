@@ -1,6 +1,6 @@
 # Known Issues — DataLens
 
-_Last updated: 2026-05-15 (Phase 2.5 UX audit — KI-019 through KI-023 added; small critical fixes applied)_
+_Last updated: 2026-05-16 (Phase 2.6 — KI-019 fixed; compare_columns filter + Compare Plan card implemented)_
 _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 
 ---
@@ -155,12 +155,10 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 - **Fix target:** Phase 3.
 
 ### KI-019 — Export modal / download has no progress indicator for large exports
-- **Status:** Unfixed
+- **Status:** FIXED (Phase 2.6, 2026-05-16)
 - **Severity:** MEDIUM
-- **File:** `web/static/index.html` (exportCSV), `web/api.py`
-- **Impact:** For large files the export API call can take several seconds. The user sees no spinner or feedback; the button appears frozen. A repeated click re-issues the request.
-- **Fix:** Add a loading state to the export button (`disabled + "Exporting…"`) while the fetch is in flight. Reset on completion or error.
-- **Fix target:** Phase 4.
+- **File:** `web/static/index.html` (`exportCSV`)
+- **Fix applied:** `exportCSV()` rewritten as `async` function using `fetch` + `Blob` download. Button is disabled and shows "⏳ Exporting…" while the request is in-flight. Restored to original text on completion or error. Filename extracted from `Content-Disposition` header with fallback to `diff.csv`. Export errors are surfaced via the error banner.
 
 ### KI-020 — SSE progress bar shows no per-phase percentage breakdown
 - **Status:** Unfixed
@@ -213,3 +211,4 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 ### KI-010 — No `is_full_count` field → FIXED (P1-T5 implemented alongside P1-T1/T2, 2026-05-14)
 ### KI-015 — Excel column source not labeled → FIXED (P1-T4, 2026-05-14; {col}_before/{col}_after headers)
 ### KI-016 — modified_rows gap of 4,437 → CLOSED (benchmark artifact; engine correct; 2026-05-14)
+### KI-019 — Export button frozen with no feedback → FIXED (Phase 2.6, 2026-05-16; async fetch + loading state)

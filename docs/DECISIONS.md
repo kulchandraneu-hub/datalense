@@ -172,6 +172,22 @@ _Format: date, decision, rationale, alternatives considered._
 
 ---
 
+---
+
+### D-014 — `compare_columns` filter: applied after `column_map` rename, in f1 name-space
+- **Date:** 2026-05-16
+- **Status:** IMPLEMENTED (Phase 2.6 Win-2)
+- **Decision:** `diff_files()` accepts an optional `compare_columns: list[str]`. When non-None, `shared_cols` is filtered to only those columns immediately after the `column_map` rename step. The filter operates on f1 column names (i.e., after any renames are applied). `None` means compare all shared columns — backward-compatible default.
+- **Rationale:** Users need to exclude noisy columns (e.g., audit timestamps, legacy fields) from the diff without removing them from the schema. Filtering `shared_cols` is the only change needed; the join, sentinel detection, added/removed counts, and is_full_count logic are all unaffected.
+- **Alternatives considered:**
+  - Filter inside `_run_compare_job` by dropping columns from the LazyFrame before calling `diff_files()`: would also affect profiling and validation, which must see all columns.
+  - Filter inside `_apply_ignore_rules`: wrong layer — ignore rules only normalize values, not select columns.
+  - Separate `exclude_columns` parameter (blacklist): whitelist (`compare_columns`) is simpler because "compare only these" is unambiguous when files have different column sets.
+- **Invariants preserved:** INV-5 (validation does not see the filter — it runs on unfiltered LazyFrames). INV-6 (full-file counts still use the same join; added/removed detection is key-based and unaffected).
+- **Frontend:** The column mapping panel (F-3) was extended with checkboxes (Win-2). Unchecked matched columns are collected into `S.colMap.excluded`; `getCompareColumns()` returns the filtered list or `null` (no filter) if nothing is excluded.
+
+---
+
 ## Invariants (never violate these)
 
 These are non-negotiable constraints carried forward from the original architecture:

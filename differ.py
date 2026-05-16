@@ -64,6 +64,7 @@ def diff_files(
     progress: Optional[Progress] = None,
     cancel_token: Optional[threading.Event] = None,
     column_map: Optional[list[dict]] = None,
+    compare_columns: Optional[list[str]] = None,
 ) -> DiffResult:
     """
     Vectorized row-level diff via full-outer join on key columns.
@@ -101,6 +102,10 @@ def diff_files(
 
     # Columns shared between both files (excluding key cols)
     shared_cols = [c for c in m1.columns if c in set(m2_cols) and c not in key_columns]
+    # Win-2: user-selected subset — filter after column_map rename so f1 names are used
+    if compare_columns:
+        _cmp_set = set(compare_columns)
+        shared_cols = [c for c in shared_cols if c in _cmp_set]
 
     if progress:
         progress.update("Diff", "Applying ignore rules", 0, 4)
