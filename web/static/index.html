@@ -635,7 +635,7 @@ td.vr-del-cell{width:28px;text-align:center}
       <div class="file-card">
         <div class="file-card-top">
           <div class="file-card-left">
-            <span class="file-card-lbl" id="lbl-f1">File 1</span>
+            <span class="file-card-lbl" id="lbl-f1">Reference</span>
             <div class="file-card-path">
               <input type="text" id="path-f1" placeholder="C:\path\to\file.csv"
                      onblur="onPathBlur('f1')" onkeydown="onPathKey(event,'f1')">
@@ -664,7 +664,7 @@ td.vr-del-cell{width:28px;text-align:center}
       <div class="file-card">
         <div class="file-card-top">
           <div class="file-card-left">
-            <span class="file-card-lbl" id="lbl-f2">File 2</span>
+            <span class="file-card-lbl" id="lbl-f2">Candidate</span>
             <div class="file-card-path">
               <input type="text" id="path-f2" placeholder="C:\path\to\file.csv"
                      onblur="onPathBlur('f2')" onkeydown="onPathKey(event,'f2')">
@@ -985,6 +985,8 @@ const S = {
   slotCounter: 2,      // next slot index
   runQueue: [],        // secondary slots queued for sequential comparison
   allResults: {},      // slot -> result, for multi-file runs
+  activeCandidate: 'f2', // candidate slot used for column mapping panel
+  activeSlot: null,    // candidate slot whose result is currently displayed
 };
 let histRuns = [];
 
@@ -1241,9 +1243,9 @@ function switchTab(tab) {
 
   // Update file card labels per tab
   const FILE_LABELS = {
-    compare:  ['File 1',    'File 2'],
-    validate: ['Template',  'File to Validate'],
-    vset:     ['File 1',    'File 2'],
+    compare:  ['Reference', 'Candidate'],
+    validate: ['Reference', 'Candidate'],
+    vset:     ['Reference', 'Candidate'],
   };
   const [l1, l2] = FILE_LABELS[tab] || FILE_LABELS.compare;
   const lbl1 = ge('lbl-f1'); if (lbl1) lbl1.textContent = l1;
@@ -1363,7 +1365,13 @@ async function loadFileInfo(slot, path, sheet) {
     renderSheetPicker(slot, info);
     populateKeySelect(slot, info.columns || []);
     renderColTags(slot, info.columns || []);
-    if (S.f1 && S.f2) buildColMappingPanel();
+    // Bug 1 fix: use reference × currently active candidate, not hardcoded f1×f2
+    const _cands = ['f2', ...S.extraSlots];
+    if (S.f1 && _cands.some(s => S[s])) {
+      if (slot !== 'f1') S.activeCandidate = slot;
+      else if (!S[S.activeCandidate]) S.activeCandidate = _cands.find(s => S[s]) || 'f2';
+      buildColMappingPanel();
+    }
     checkRunnable();
     vsetCheckRunnable();
   } catch(e) {
@@ -1445,7 +1453,7 @@ function addFileSlot() {
   // inject card at end of .file-stack
   const stack = document.querySelector('.file-stack');
   const tmp = document.createElement('div');
-  tmp.innerHTML = makeFileCardHTML(slot, `File ${S.slotCounter}`);
+  tmp.innerHTML = makeFileCardHTML(slot, `Candidate ${S.slotCounter - 1}`);
   stack.appendChild(tmp.firstElementChild);
   // add hidden key-select for this slot
   const hks = ge('hidden-key-selects');
@@ -1628,7 +1636,7 @@ async function _startNextRun() {
   const slot2 = S.runQueue[0];
   const info2 = S[slot2];
   const label2 = ge(`lbl-${slot2}`)?.textContent || slot2;
-  ge('prog-phase').textContent = `Comparing File 1 vs ${label2}…`;
+  ge('prog-phase').textContent = `Comparing Reference vs ${label2}…`;
 
   const keyColsF1 = getSelectedKeys('f1');
   const keyColsF2 = getSelectedKeys(slot2);
@@ -1688,7 +1696,7 @@ function handleSSE(d) {
       finishRun();
       // show first result by default
       const firstSlot = Object.keys(S.allResults)[0];
-      if (firstSlot) renderResult(S.allResults[firstSlot]);
+      if (firstSlot) { S.activeSlot = firstSlot; renderResult(S.allResults[firstSlot]); }
       _updateResultPairBar();
       loadHistory();
     }
@@ -1758,7 +1766,7 @@ function _updateResultPairBar() {
     slots.map(s => {
       const lbl = ge(`lbl-${s}`)?.textContent || s;
       return `<button class="btn-sm pair-btn" id="pair-btn-${s}"
-        onclick="switchResultPair('${s}')">File 1 vs ${esc(lbl)}</button>`;
+        onclick="switchResultPair('${s}')">vs ${esc(lbl)}</button>`;
     }).join('');
   // highlight the first slot
   ge(`pair-btn-${slots[0]}`)?.classList.add('active');
@@ -1767,7 +1775,7 @@ function _updateResultPairBar() {
 function switchResultPair(slot) {
   document.querySelectorAll('.pair-btn').forEach(b => b.classList.remove('active'));
   ge(`pair-btn-${slot}`)?.classList.add('active');
-  if (S.allResults[slot]) renderResult(S.allResults[slot]);
+  if (S.allResults[slot]) { S.activeSlot = slot; renderResult(S.allResults[slot]); }
 }
 
 function renderResult(result) {
@@ -1777,7 +1785,14 @@ function renderResult(result) {
   renderMetricBar(result);
   renderSchemaPanel(result.schema);
   buildResultTabs(result);
-  ge('exp-btn').style.display = result.job_type==='compare' ? 'inline-block' : 'none';
+  if (result.job_type === 'compare') {
+    const expBtn = ge('exp-btn');
+    expBtn.style.display = 'inline-block';
+    const candLabel = ge(`lbl-${S.activeSlot}`)?.textContent || 'Candidate';
+    expBtn.textContent = `⬇ Export CSV — ${candLabel} (sample, ≤100 rows)`;
+  } else {
+    ge('exp-btn').style.display = 'none';
+  }
   const defaultTab = result.job_type==='compare' ? 'diff' : 'validation';
   switchRT(defaultTab);
 }
@@ -2076,7 +2091,9 @@ async function exportCSV() {
   btn.disabled = true;
   btn.textContent = '⏳ Exporting…';
   try {
-    const resp = await fetch('/api/export-csv');
+    const csvPath = S.result?.csv_export;
+    const exportUrl = csvPath ? `/api/export-csv?path=${encodeURIComponent(csvPath)}` : '/api/export-csv';
+    const resp = await fetch(exportUrl);
     if (!resp.ok) {
       const j = await resp.json().catch(() => ({}));
       throw new Error(j.detail || resp.statusText);
@@ -2161,7 +2178,7 @@ function fuzzyMatchCols(onlyA, onlyB, threshold=2) {
 
 function buildColMappingPanel() {
   const cols1 = S.f1?.columns || [];
-  const cols2 = S.f2?.columns || [];
+  const cols2 = S[S.activeCandidate || 'f2']?.columns || [];
   const set2 = new Set(cols2);
   const matched = cols1.filter(c => set2.has(c));
   const onlyA = cols1.filter(c => !set2.has(c));
@@ -2381,12 +2398,12 @@ function vsetAddPair() {
   row.className = 'vset-pair'; row.id = 'vset-pair-'+id;
   row.innerHTML = `
     <div class="vset-pair-g">
-      <span class="lbl" style="font-size:9px">Column from File 1</span>
+      <span class="lbl" style="font-size:9px">Column from Reference</span>
       ${mkOpts(cols1,'vset-c1-'+id)}
     </div>
     <span class="vset-pair-sep">↔</span>
     <div class="vset-pair-g">
-      <span class="lbl" style="font-size:9px">Column from File 2</span>
+      <span class="lbl" style="font-size:9px">Column from Candidate</span>
       ${mkOpts(cols2,'vset-c2-'+id)}
     </div>
     <div style="padding-bottom:8px;flex-shrink:0">

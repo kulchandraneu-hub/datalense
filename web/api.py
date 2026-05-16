@@ -436,14 +436,15 @@ async def delete_history_run(job_id: str):
 
 
 @app.get("/api/export-csv")
-async def export_csv():
-    """Download the diff CSV from the most recent comparison."""
+async def export_csv(path: Optional[str] = None):
+    """Download a diff CSV. If `path` is given serve that file; else serve the last run's CSV."""
     global _last_csv_path
-    if not _last_csv_path or not _last_csv_path.exists():
+    csv_path = Path(path) if path else _last_csv_path
+    if not csv_path or not csv_path.exists():
         raise HTTPException(404, "No CSV export available. Run a comparison first.")
     return FileResponse(
-        path=str(_last_csv_path),
-        filename=_last_csv_path.name,
+        path=str(csv_path),
+        filename=csv_path.name,
         media_type="text/csv",
     )
 
