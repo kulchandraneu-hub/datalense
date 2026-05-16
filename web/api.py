@@ -107,9 +107,25 @@ class CompareAPIRequest(BaseModel):
     sheet1: Optional[str] = None
     sheet2: Optional[str] = None
     key_columns: Optional[list[str]] = None
+    key_columns_f1: Optional[list[str]] = None
+    key_columns_f2: Optional[list[str]] = None
+    column_map: Optional[list[dict]] = None
     ignore_case: bool = False
     ignore_whitespace: bool = False
     output_dir: Optional[str] = None
+
+
+class ValueSetPair(BaseModel):
+    f1_col: str
+    f2_col: str
+
+
+class ValueSetRequest(BaseModel):
+    file1: str
+    file2: str
+    sheet1: Optional[str] = None
+    sheet2: Optional[str] = None
+    pairs: list[ValueSetPair]
 
 
 class ValidateAPIRequest(BaseModel):
@@ -178,6 +194,76 @@ async def file_info(req: FileInfoRequest):
         "memory_status": mem_status,
         "memory_message": mem_msg,
     }
+
+
+@app.get("/api/headers")
+async def get_headers(path: str, sheet: Optional[str] = None):
+    """Return column names for a file without a full metadata scan."""
+    p = Path(path)
+    if not p.exists():
+        raise HTTPException(404, f"File not found: {path}")
+    try:
+        meta = load_metadata(p, sheet)
+        return {"columns": meta.columns}
+    except Exception as exc:
+        raise HTTPException(500, f"Could not read headers: {exc}")
+
+
+@app.post("/api/value_set_compare")
+async def value_set_compare(req: ValueSetRequest):
+    """
+    For each column pair, return the distinct value sets and their intersections.
+    Uses pl.scan_csv() — never read_csv(). Collects unique values per column only.
+    """
+    if not req.pairs:
+        raise HTTPException(400, "At least one column pair required")
+
+    p1, p2 = Path(req.file1), Path(req.file2)
+    for p in (p1, p2):
+        if not p.exists():
+            raise HTTPException(404, f"File not found: {p}")
+
+    temp_files: list[Path] = []
+    try:
+        m1 = load_metadata(p1, req.sheet1)
+        m2 = load_metadata(p2, req.sheet2)
+        lf1 = _load_lazy_frame(p1, m1, temp_files)
+        lf2 = _load_lazy_frame(p2, m2, temp_files)
+
+        results = []
+        for pair in req.pairs:
+            try:
+                raw1 = lf1.select(pl.col(pair.f1_col).cast(pl.Utf8)).unique().collect()[pair.f1_col].to_list()
+                raw2 = lf2.select(pl.col(pair.f2_col).cast(pl.Utf8)).unique().collect()[pair.f2_col].to_list()
+                vals1 = {v for v in raw1 if v is not None}
+                vals2 = {v for v in raw2 if v is not None}
+                only_f1 = sorted(vals1 - vals2)
+                only_f2 = sorted(vals2 - vals1)
+                in_both = sorted(vals1 & vals2)
+                results.append({
+                    "f1_col": pair.f1_col,
+                    "f2_col": pair.f2_col,
+                    "only_in_f1_count": len(only_f1),
+                    "only_in_f2_count": len(only_f2),
+                    "in_both_count": len(in_both),
+                    "only_in_f1_sample": only_f1[:500],
+                    "only_in_f2_sample": only_f2[:500],
+                    "in_both_sample": in_both[:500],
+                })
+            except Exception as exc:
+                results.append({
+                    "f1_col": pair.f1_col,
+                    "f2_col": pair.f2_col,
+                    "error": str(exc),
+                })
+    finally:
+        for tmp in temp_files:
+            try:
+                tmp.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    return {"results": results}
 
 
 @app.post("/api/compare")
@@ -413,14 +499,26 @@ def _run_compare_job(job_id: str, req: CompareAPIRequest) -> None:
 
     try:
         out_dir = EXPORTS_DIR
+
+        # Resolve effective key columns (f1 wins; fall back to shared key_columns).
+        eff_key = req.key_columns_f1 or req.key_columns
+
+        # Merge asymmetric key column names into column_map so differ.py can rename f2.
+        col_map: list[dict] = list(req.column_map or [])
+        if req.key_columns_f1 and req.key_columns_f2 and req.key_columns_f1 != req.key_columns_f2:
+            for k1, k2 in zip(req.key_columns_f1, req.key_columns_f2):
+                if k1 != k2:
+                    col_map.append({"f1": k1, "f2": k2})
+
         core_req = CoreCompareRequest(
             file1=Path(req.file1),
             file2=Path(req.file2),
             sheet1=req.sheet1,
             sheet2=req.sheet2,
-            key_columns=req.key_columns,
+            key_columns=eff_key,
             ignore_rules=IgnoreRules(case=req.ignore_case, whitespace=req.ignore_whitespace),
             output_dir=out_dir,
+            column_map=col_map or None,
         )
 
         result = run_compare(core_req, progress=progress, cancel_token=job.cancel_token)

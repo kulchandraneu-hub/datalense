@@ -28,6 +28,7 @@ class CompareRequest:
     ignore_rules: Optional[IgnoreRules] = None
     validation_config: Optional[ValidationConfig] = None
     output_dir: Optional[Path] = None
+    column_map: Optional[list[dict]] = None
 
 
 @dataclass
@@ -147,6 +148,7 @@ def run_compare(
             ignore_rules=request.ignore_rules,
             progress=progress,
             cancel_token=cancel_token,
+            column_map=request.column_map,
         )
 
         # P1-T7: if the key was non-unique in either file, mark counts as

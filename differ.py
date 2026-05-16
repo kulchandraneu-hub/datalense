@@ -63,20 +63,22 @@ def diff_files(
     ignore_rules: Optional[IgnoreRules] = None,
     progress: Optional[Progress] = None,
     cancel_token: Optional[threading.Event] = None,
+    column_map: Optional[list[dict]] = None,
 ) -> DiffResult:
     """
     Vectorized row-level diff via full-outer join on key columns.
 
     Flow:
-    1. Apply ignore rules to both LazyFrames (semantic frames).
-    2. Cast both to Utf8 for raw comparison (raw frames).
-    3. P1-T2: Add sentinel columns (_in_f1, _in_f2) before join for unambiguous
+    1. Apply column_map: rename f2 columns into f1 name-space (if supplied).
+    2. Apply ignore rules to both LazyFrames (semantic frames).
+    3. Cast both to Utf8 for raw comparison (raw frames).
+    4. P1-T2: Add sentinel columns (_in_f1, _in_f2) before join for unambiguous
        row-origin tracking. _in_f1 IS NULL after join → row only in f2 (added).
        _in_f2 IS NULL after join → row only in f1 (removed).
-    4. Full-outer join on key columns for both semantic and raw frames.
-    5. P1-T1: Classify all rows using Polars when/then/otherwise; aggregate
+    5. Full-outer join on key columns for both semantic and raw frames.
+    6. P1-T1: Classify all rows using Polars when/then/otherwise; aggregate
        full-file counts via group_by. No Python loop for counting.
-    6. Collect head(1000) for sample_diffs display only (labeled as sample).
+    7. Collect head(1000) for sample_diffs display only (labeled as sample).
     """
     start = time.time()
     check_cancel(cancel_token)
@@ -84,19 +86,32 @@ def diff_files(
     if ignore_rules is None:
         ignore_rules = IgnoreRules()
 
+    # Apply column_map: rename lf2 columns into f1 name-space before any join logic.
+    m2_cols = list(m2.columns)
+    if column_map:
+        rename_map = {
+            item["f2"]: item["f1"]
+            for item in column_map
+            if item.get("f2") and item.get("f1") and item["f2"] != item["f1"]
+        }
+        actual_renames = {k: v for k, v in rename_map.items() if k in m2_cols}
+        if actual_renames:
+            lf2 = lf2.rename(actual_renames)
+            m2_cols = [actual_renames.get(c, c) for c in m2_cols]
+
     # Columns shared between both files (excluding key cols)
-    shared_cols = [c for c in m1.columns if c in set(m2.columns) and c not in key_columns]
+    shared_cols = [c for c in m1.columns if c in set(m2_cols) and c not in key_columns]
 
     if progress:
         progress.update("Diff", "Applying ignore rules", 0, 4)
 
     # Build semantic (post-rules) frames
     lf1_sem = _apply_ignore_rules(lf1, ignore_rules, m1.columns)
-    lf2_sem = _apply_ignore_rules(lf2, ignore_rules, m2.columns)
+    lf2_sem = _apply_ignore_rules(lf2, ignore_rules, m2_cols)
 
     # Build raw (pre-rules, cast to string for comparison) frames
     lf1_raw = _cast_to_str(lf1, m1.columns)
-    lf2_raw = _cast_to_str(lf2, m2.columns)
+    lf2_raw = _cast_to_str(lf2, m2_cols)
 
     # P1-T2: Sentinel columns added before join to track row origin unambiguously.
     # After full-outer join: _in_f1 IS NULL → row absent from file 1 (added to f2).
@@ -118,9 +133,9 @@ def diff_files(
         return lf.rename({c: f"{c}{suffix}" for c in cols if c not in key_columns})
 
     lf1_sem_r = _rename(lf1_sem, m1.columns, "_f1")
-    lf2_sem_r = _rename(lf2_sem, m2.columns, "_f2")
+    lf2_sem_r = _rename(lf2_sem, m2_cols, "_f2")
     lf1_raw_r = _rename(lf1_raw, m1.columns, "_raw1")
-    lf2_raw_r = _rename(lf2_raw, m2.columns, "_raw2")
+    lf2_raw_r = _rename(lf2_raw, m2_cols, "_raw2")
 
     # Semantic join (full outer)
     sem_joined = lf1_sem_r.join(lf2_sem_r, on=key_columns, how="full", coalesce=True)

@@ -12,15 +12,24 @@
   --bg:#0F172A;--sur:#1E293B;--sur2:#243148;--bdr:#334155;
   --txt:#F1F5F9;--mut:#94A3B8;
   --blu:#3B82F6;--grn:#22C55E;--red:#EF4444;--yel:#F59E0B;--pur:#8B5CF6;
+  --blu-rgb:59,130,246;
   --font:'Consolas','Cascadia Code','SF Mono','Monaco','Courier New',monospace;
 }
 [data-theme="light"]{
-  --bg:#F1F5F9;--sur:#FFFFFF;--sur2:#E8EEF6;--bdr:#CBD5E1;
-  --txt:#0F172A;--mut:#64748B;
-  --blu:#2563EB;--grn:#16A34A;--red:#DC2626;--yel:#D97706;--pur:#7C3AED;
+  /* Warm slate — no pure white, no pure black; easy on eyes, professional */
+  --bg:#E8EDF4;--sur:#F0F4F9;--sur2:#DDE4EE;--bdr:#B8C5D6;
+  --txt:#1A2637;--mut:#4E6480;
+  --blu:#1D60D5;--grn:#15803D;--red:#C0291F;--yel:#B45309;--pur:#6830C9;
+  --blu-rgb:29,96,213;
 }
 html{font-size:13px}
-body{background:var(--bg);color:var(--txt);font-family:var(--font);line-height:1.5;min-height:100vh;transition:background .2s,color .2s}
+body{background:var(--bg);color:var(--txt);font-family:var(--font);line-height:1.5;min-height:100vh;transition:background-color .35s,color .35s}
+/* smooth theme switch without fighting per-element hover transitions */
+header,footer,.card,.sidebar,.layout,.tab-btn,.btn-header,
+input[type=text],select,.stat-val,.stat-lbl,.section-title,
+.tabulator,.tabulator .tabulator-header,.tabulator .tabulator-row{
+  transition:background-color .35s,color .35s,border-color .35s
+}
 
 /* ── Header ── */
 header{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:50px;
@@ -76,6 +85,11 @@ button{cursor:pointer;font-family:var(--font)}
 .btn-sm{background:var(--sur2);border:1px solid var(--bdr);color:var(--mut);padding:3px 12px;
   font-size:11px;letter-spacing:.06em;font-family:var(--font);transition:color .15s,border-color .15s}
 .btn-sm:hover{color:var(--txt);border-color:var(--mut)}
+.btn-sm.active{color:var(--blu);border-color:var(--blu);background:rgba(var(--blu-rgb),.08)}
+.btn-add-file{background:transparent;border:1px dashed var(--bdr);color:var(--mut);
+  padding:6px 16px;font-size:11px;font-family:var(--font);width:100%;margin-top:4px;
+  transition:color .15s,border-color .15s;cursor:pointer}
+.btn-add-file:hover{color:var(--txt);border-color:var(--mut)}
 
 /* ── File grid ── */
 .file-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px}
@@ -92,9 +106,7 @@ button{cursor:pointer;font-family:var(--font)}
 .mem-banner.lvl-err{border-color:var(--red);background:rgba(239,68,68,.07);color:var(--red)}
 
 /* ── Options row ── */
-.opts-row{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
-.opt-g{flex:1;min-width:160px}
-.opt-fixed{flex-shrink:0}
+/* .opts-row replaced by .opts-bar */
 .checks{display:flex;gap:14px;align-items:center;height:30px}
 .checks label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--mut);transition:color .15s}
 .checks label:hover{color:var(--txt)}
@@ -471,6 +483,76 @@ td.vr-del-cell{width:28px;text-align:center}
 .btn-wrap:hover,.btn-copy-tsv:hover{color:var(--txt);border-color:var(--mut)}
 .btn-wrap.on{border-color:var(--pur);color:var(--pur);background:rgba(139,92,246,.1)}
 .btn-copy-tsv.ok{color:var(--grn)!important;border-color:var(--grn)!important}
+
+/* ── File stack (F-1 vertical layout) ── */
+.file-stack{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.file-card{border:1px solid var(--bdr);padding:10px 14px;background:var(--bg)}
+.file-card-top{display:flex;align-items:center;gap:10px}
+.file-card-left{display:flex;align-items:center;gap:8px;width:36%;min-width:260px;flex-shrink:0}
+.file-card-lbl{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--pur);font-weight:700;flex-shrink:0;width:76px}
+.file-card-path{display:flex;gap:4px;flex:1;min-width:0}
+.file-card-path input{flex:1;min-width:0}
+.file-card-sub{display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;padding-left:0}
+/* column strip — full-width row below the file-card-top, left-aligned */
+.file-cols-wrap{margin-top:7px;display:flex;flex-direction:column;gap:5px}
+.file-key-bar{font-size:10px;color:var(--mut);display:flex;align-items:center;gap:5px}
+.file-key-val{color:var(--blu);font-weight:700}
+.file-key-hint{font-size:9px;color:var(--mut);opacity:.7;letter-spacing:.04em}
+.file-cols{display:flex;flex-wrap:wrap;gap:3px}
+.file-col-tag{font-size:10px;padding:2px 8px;border:1px solid var(--bdr);color:var(--mut);background:var(--sur2);
+  letter-spacing:.03em;white-space:nowrap;cursor:pointer;user-select:none;
+  transition:border-color .12s,color .12s,background .12s}
+.file-col-tag:hover{border-color:var(--mut);color:var(--txt)}
+.file-col-tag.key-selected{border-color:var(--blu);color:var(--blu);background:rgba(var(--blu-rgb),.10);font-weight:700}
+/* ── Options bar — compact column layout ── */
+.opts-bar{display:flex;flex-direction:column;gap:8px;margin-top:10px;align-items:flex-start}
+.opts-checks{display:flex;flex-direction:column;gap:6px}
+.opts-lbl{font-size:11px;color:var(--mut);cursor:pointer;display:flex;align-items:center;gap:6px}
+.opts-lbl:hover{color:var(--txt)}
+/* inline ? help icon with tooltip */
+.opt-tip{display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;border-radius:3px;border:1px solid var(--bdr);
+  font-size:10px;font-weight:700;font-family:sans-serif;
+  color:var(--mut);background:var(--sur2);cursor:help;flex-shrink:0;
+  position:relative;font-style:normal;line-height:1}
+.opt-tip:hover{border-color:var(--blu);color:var(--blu)}
+.opt-tip::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;
+  transform:translateX(-50%);background:var(--sur);border:1px solid var(--bdr);color:var(--txt);
+  font-size:11px;padding:6px 10px;white-space:nowrap;z-index:300;pointer-events:none;
+  opacity:0;transition:opacity .15s;letter-spacing:0;font-weight:400;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+.opt-tip:hover::after{opacity:1}
+/* ── Column mapping panel (F-3) ── */
+#col-map-panel{display:none;margin-top:12px;border-top:1px solid var(--bdr);padding-top:10px}
+.cm-hd{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.cm-title{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);flex:1}
+.cm-groups{display:flex;gap:8px;flex-wrap:wrap}
+.cm-group{flex:1;min-width:160px;background:var(--bg);border:1px solid var(--bdr);padding:8px 10px}
+.cm-group-hd{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:6px}
+.cm-tags{display:flex;flex-wrap:wrap;gap:3px;min-height:20px}
+.cm-tag{display:inline-flex;align-items:center;padding:2px 7px;border:1px solid;font-size:10px}
+.cm-tag.ok{border-color:rgba(34,197,94,.4);color:var(--grn);background:rgba(34,197,94,.06)}
+.cm-tag.warn{border-color:rgba(245,158,11,.4);color:var(--yel);background:rgba(245,158,11,.06)}
+.cm-tag.fuzzy{border-color:rgba(139,92,246,.4);color:var(--pur);background:rgba(139,92,246,.06)}
+.cm-tag.user{border-color:rgba(59,130,246,.4);color:var(--blu);background:rgba(59,130,246,.06)}
+.cm-act{background:transparent;border:none;padding:0 0 0 4px;font-size:11px;line-height:1;cursor:pointer;color:inherit;opacity:.7}
+.cm-act:hover{opacity:1}
+.cm-empty{font-size:11px;color:var(--mut);font-style:italic}
+/* ── Value Set Compare (F-4) ── */
+.vset-card{display:none;margin-bottom:12px}
+.vset-card.vset-active{display:block}
+.vset-pair{display:flex;align-items:flex-end;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.vset-pair-g{flex:1;min-width:120px}
+.vset-pair-sep{color:var(--mut);padding-bottom:9px;font-size:16px;flex-shrink:0}
+.vset-result-item{background:var(--bg);border:1px solid var(--bdr);padding:10px 12px;margin-bottom:8px}
+.vset-ri-title{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:8px}
+.vset-stats{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.vset-stat{padding:3px 10px;font-size:11px;font-weight:700;border-left:3px solid;cursor:pointer;transition:opacity .15s}
+.vset-stat:hover{opacity:.8}
+.vset-stat.sa{border-color:var(--red);background:rgba(239,68,68,.08);color:var(--red)}
+.vset-stat.sb{border-color:var(--grn);background:rgba(34,197,94,.08);color:var(--grn)}
+.vset-stat.sc{border-color:var(--blu);background:rgba(59,130,246,.08);color:var(--blu)}
+.vset-samp{margin-top:6px;background:var(--sur2);border:1px solid var(--bdr);padding:6px 10px;
+  font-size:11px;max-height:150px;overflow-y:auto;display:none;word-break:break-all;color:var(--mut);line-height:1.6}
 </style>
 </head>
 <body>
@@ -478,11 +560,12 @@ td.vr-del-cell{width:28px;text-align:center}
 <header>
   <div class="header-left">
     <span class="logo"><span class="logo-mark">◈</span>DataLens</span>
-    <span class="logo-sub">Compare · Validate · CSV &amp; Excel</span>
+    <span class="logo-sub">Compare · Validate · CSV &amp; Excel · v1.1.0</span>
   </div>
   <div class="tabs">
     <button class="tab-btn active" id="tb-compare" onclick="switchTab('compare')">Compare</button>
     <button class="tab-btn" id="tb-validate" onclick="switchTab('validate')">Validate</button>
+    <button class="tab-btn" id="tb-vset" onclick="switchTab('vset')">Value Set</button>
   </div>
   <div class="header-right">
     <button class="btn-header btn-help" onclick="showHelp()" title="Help &amp; Reference">?</button>
@@ -535,60 +618,102 @@ td.vr-del-cell{width:28px;text-align:center}
 
   <!-- ── Inputs ── -->
   <div class="card">
-    <div class="file-grid">
+    <div class="file-stack">
 
       <!-- File 1 -->
-      <div>
-        <span class="lbl">Reference File</span>
-        <div class="path-row">
-          <input type="text" id="path-f1" placeholder="C:\path\to\reference.csv"
-                 onblur="onPathBlur('f1')" onkeydown="onPathKey(event,'f1')">
-          <button class="btn-icon" id="br-btn-f1" onclick="openBrowse('f1')" title="Browse">📁</button>
+      <div class="file-card">
+        <div class="file-card-top">
+          <div class="file-card-left">
+            <span class="file-card-lbl" id="lbl-f1">File 1</span>
+            <div class="file-card-path">
+              <input type="text" id="path-f1" placeholder="C:\path\to\file.csv"
+                     onblur="onPathBlur('f1')" onkeydown="onPathKey(event,'f1')">
+              <button class="btn-icon" id="br-btn-f1" onclick="openBrowse('f1')" title="Browse">📁</button>
+            </div>
+          </div>
+          <div id="chip-f1" class="file-chip" style="display:none;flex-shrink:0"></div>
         </div>
-        <div id="sheet-row-f1" class="sheet-row" style="display:none">
-          <span class="lbl">Sheet</span>
-          <select id="sheet-f1" onchange="onSheetChange('f1')"></select>
+        <div id="cols-wrap-f1" class="file-cols-wrap" style="display:none">
+          <div class="file-key-bar">
+            Match key: <span id="key-val-f1" class="file-key-val">(auto)</span>
+            <span class="file-key-hint">— click column(s) below to set</span>
+          </div>
+          <div id="cols-f1" class="file-cols"></div>
         </div>
-        <div id="chip-f1" class="file-chip" style="display:none"></div>
-        <div id="mem-f1"  class="mem-banner" style="display:none"></div>
+        <div class="file-card-sub">
+          <div id="sheet-row-f1" class="sheet-row" style="display:none">
+            <span class="lbl">Sheet</span>
+            <select id="sheet-f1" onchange="onSheetChange('f1')"></select>
+          </div>
+          <div id="mem-f1" class="mem-banner" style="display:none;margin:0"></div>
+        </div>
       </div>
 
       <!-- File 2 -->
-      <div>
-        <span class="lbl">Candidate File</span>
-        <div class="path-row">
-          <input type="text" id="path-f2" placeholder="C:\path\to\candidate.csv"
-                 onblur="onPathBlur('f2')" onkeydown="onPathKey(event,'f2')">
-          <button class="btn-icon" id="br-btn-f2" onclick="openBrowse('f2')" title="Browse">📁</button>
+      <div class="file-card">
+        <div class="file-card-top">
+          <div class="file-card-left">
+            <span class="file-card-lbl" id="lbl-f2">File 2</span>
+            <div class="file-card-path">
+              <input type="text" id="path-f2" placeholder="C:\path\to\file.csv"
+                     onblur="onPathBlur('f2')" onkeydown="onPathKey(event,'f2')">
+              <button class="btn-icon" id="br-btn-f2" onclick="openBrowse('f2')" title="Browse">📁</button>
+            </div>
+          </div>
+          <div id="chip-f2" class="file-chip" style="display:none;flex-shrink:0"></div>
         </div>
-        <div id="sheet-row-f2" class="sheet-row" style="display:none">
-          <span class="lbl">Sheet</span>
-          <select id="sheet-f2" onchange="onSheetChange('f2')"></select>
+        <div id="cols-wrap-f2" class="file-cols-wrap" style="display:none">
+          <div class="file-key-bar">
+            Match key: <span id="key-val-f2" class="file-key-val">(auto)</span>
+            <span class="file-key-hint">— click column(s) below to set</span>
+          </div>
+          <div id="cols-f2" class="file-cols"></div>
         </div>
-        <div id="chip-f2" class="file-chip" style="display:none"></div>
-        <div id="mem-f2"  class="mem-banner" style="display:none"></div>
+        <div class="file-card-sub">
+          <div id="sheet-row-f2" class="sheet-row" style="display:none">
+            <span class="lbl">Sheet</span>
+            <select id="sheet-f2" onchange="onSheetChange('f2')"></select>
+          </div>
+          <div id="mem-f2" class="mem-banner" style="display:none;margin:0"></div>
+        </div>
       </div>
     </div>
 
-    <!-- Options -->
-    <div class="opts-row">
-      <div class="opt-g">
-        <span class="lbl">Key Columns</span>
-        <input type="text" id="key-cols" placeholder="Auto-detect  ·  e.g. id,employee_id">
+    <!-- "+ Add File" button — appends extra file cards to .file-stack -->
+    <button class="btn-add-file" onclick="addFileSlot()">+ Add another file to compare</button>
+
+    <!-- Hidden key selects — driven by chip clicks, read by startRun() -->
+    <div id="hidden-key-selects" style="display:none">
+      <select id="key-f1" onchange="onKeyChange()"><option value="">Auto-detect</option></select>
+      <select id="key-f2" onchange="onKeyChange()"><option value="">Auto-detect</option></select>
+    </div>
+
+    <!-- Options bar -->
+    <div class="opts-bar" id="compare-opts">
+      <div class="opts-checks">
+        <label class="opts-lbl">
+          <input type="checkbox" id="ign-case">
+          Uppercase = lowercase
+          <i class="opt-tip" data-tip="'SMITH' and 'Smith' will be treated as the same value">?</i>
+        </label>
+        <label class="opts-lbl">
+          <input type="checkbox" id="ign-ws">
+          Ignore extra spaces
+          <i class="opt-tip" data-tip="Spaces at the start or end of a value are ignored (' John ' = 'John')">?</i>
+        </label>
       </div>
-      <div class="opt-g">
-        <span class="lbl">Ignore</span>
-        <div class="checks">
-          <label><input type="checkbox" id="ign-case"> Case</label>
-          <label><input type="checkbox" id="ign-ws"> Whitespace</label>
-        </div>
+      <button class="btn-primary" id="run-btn" onclick="startRun()" disabled>
+        <span id="run-lbl">▶ Compare Files</span>
+      </button>
+    </div>
+
+    <!-- Column Mapping Panel (F-3) — shown when both files are loaded -->
+    <div id="col-map-panel">
+      <div class="cm-hd">
+        <span class="cm-title">Column Mapping</span>
+        <button class="btn-sm" onclick="toggleColMapPanel()" id="cm-toggle-btn">Hide</button>
       </div>
-      <div class="opt-fixed">
-        <span class="lbl">&nbsp;</span>
-        <button class="btn-primary" id="run-btn" onclick="startRun()" disabled>
-          <span id="run-lbl">▶ Compare Files</span>
-        </button>
-      </div>
+      <div class="cm-groups" id="cm-groups"></div>
     </div>
 
     <!-- Validation Rules (shown only in Validate tab) -->
@@ -639,8 +764,22 @@ td.vr-del-cell{width:28px;text-align:center}
     </div>
   </div>
 
+  <!-- ── Value Set Compare (F-4) ── -->
+  <div class="card vset-card" id="vset-section">
+    <div class="card-title">Value Set Compare</div>
+    <div id="vset-pairs">
+      <!-- pair rows injected by JS -->
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+      <button class="btn-sm" onclick="vsetAddPair()" id="vset-add-btn">+ Add Column Pair</button>
+      <button class="btn-primary" id="vset-run-btn" onclick="startValueSetCompare()" disabled>▶ Compare Values</button>
+    </div>
+    <div id="vset-results" class="vset-result" style="margin-top:14px"></div>
+  </div>
+
   <!-- ── Results Card ── -->
   <div class="card" id="card-res" style="display:none">
+    <div id="result-pair-bar" style="display:none;flex-wrap:wrap;gap:4px;margin-bottom:10px;align-items:center"></div>
     <div class="metric-bar" id="metric-bar"></div>
     <div id="schema-panel" style="display:none"></div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
@@ -778,7 +917,7 @@ td.vr-del-cell{width:28px;text-align:center}
       </div>
 
     </div>
-    <div class="help-ft">DataLens · CSV &amp; Excel comparison engine powered by Polars · Exports saved to <code>exports/</code></div>
+    <div class="help-ft">DataLens v1.1.0 · Updated 2026-05-15 · CSV &amp; Excel comparison engine powered by Polars · Exports saved to <code>exports/</code></div>
   </div>
 </div>
 
@@ -816,12 +955,19 @@ function showHelp(){ ge('help-bg').style.display='flex'; }
 function closeHelp(){ ge('help-bg').style.display='none'; }
 
 // ─────────────────────────────────── State
+const APP_VERSION = '1.1.0';
 const S = {
   tab:'compare', f1:null, f2:null,
   jobId:null, sse:null, result:null, running:false,
   browseTarget:null, timerIv:null, timerStart:null,
   resultTab:'diff', lastBrowsePath:'', brParent:null,
   _tabInit:{},
+  colMap: null,  // F-3: {matched, onlyA, onlyB, fuzzy, userMapped}
+  colMapVisible: false,
+  extraSlots: [],      // ['f3','f4',...] — dynamically added file slots
+  slotCounter: 2,      // next slot index
+  runQueue: [],        // secondary slots queued for sequential comparison
+  allResults: {},      // slot -> result, for multi-file runs
 };
 let histRuns = [];
 
@@ -1051,10 +1197,41 @@ async function apiGet(url) {
 // ─────────────────────────────────── Tab
 function switchTab(tab) {
   S.tab = tab;
-  document.getElementById('tb-compare').classList.toggle('active', tab==='compare');
-  document.getElementById('tb-validate').classList.toggle('active', tab==='validate');
-  document.getElementById('run-lbl').textContent = tab==='compare' ? '▶ Compare Files' : '▶ Validate Files';
-  document.getElementById('val-rules-panel').style.display = tab==='validate' ? '' : 'none';
+  ['compare','validate','vset'].forEach(t => {
+    const btn = ge('tb-'+t);
+    if (btn) btn.classList.toggle('active', t===tab);
+  });
+  const isVset = tab === 'vset';
+  const isCompare = tab === 'compare';
+  const isValidate = tab === 'validate';
+
+  // Show/hide the inputs card sections
+  const compareOpts = ge('compare-opts');
+  if (compareOpts) compareOpts.style.display = isVset ? 'none' : '';
+  const colMapPanel = ge('col-map-panel');
+  if (colMapPanel) colMapPanel.style.display = (!isVset && S.colMapVisible) ? '' : 'none';
+
+  ge('val-rules-panel').style.display = isValidate ? '' : 'none';
+  ge('run-btn').style.display = isVset ? 'none' : '';
+
+  // Value Set section
+  const vs = ge('vset-section');
+  if (vs) vs.classList.toggle('vset-active', isVset);
+
+  if (!isVset) {
+    ge('run-lbl').textContent = isCompare ? '▶ Compare Files' : '▶ Validate';
+  }
+
+  // Update file card labels per tab
+  const FILE_LABELS = {
+    compare:  ['File 1',    'File 2'],
+    validate: ['Template',  'File to Validate'],
+    vset:     ['File 1',    'File 2'],
+  };
+  const [l1, l2] = FILE_LABELS[tab] || FILE_LABELS.compare;
+  const lbl1 = ge('lbl-f1'); if (lbl1) lbl1.textContent = l1;
+  const lbl2 = ge('lbl-f2'); if (lbl2) lbl2.textContent = l2;
+
   checkRunnable();
 }
 
@@ -1166,14 +1343,23 @@ async function loadFileInfo(slot, path, sheet) {
     renderChip(slot, info);
     renderMem(slot, info);
     renderSheetPicker(slot, info);
+    populateKeySelect(slot, info.columns || []);
+    renderColTags(slot, info.columns || []);
+    if (S.f1 && S.f2) buildColMappingPanel();
     checkRunnable();
+    vsetCheckRunnable();
   } catch(e) {
     S[slot] = null;
     ge(`chip-${slot}`).style.display='none';
+    ge(`cols-wrap-${slot}`).style.display='none';
+    ge(`cols-${slot}`).innerHTML='';
+    const kv = ge(`key-val-${slot}`); if (kv) kv.textContent='(auto)';
+    const ks = ge(`key-${slot}`); if (ks) ks.value='';
     ge(`sheet-row-${slot}`).style.display='none';
     ge(`mem-${slot}`).style.display='none';
     showErr(`[${slot.toUpperCase()}] ${e.message}`);
     checkRunnable();
+    vsetCheckRunnable();
   }
 }
 
@@ -1201,14 +1387,118 @@ function renderSheetPicker(s, info) {
   row.style.display='flex';
 }
 
+// ─────────────────────────────────── Dynamic file slots
+function makeFileCardHTML(slot, label) {
+  return `<div class="file-card" id="card-${slot}">
+    <div class="file-card-top">
+      <div class="file-card-left">
+        <span class="file-card-lbl" id="lbl-${slot}">${esc(label)}</span>
+        <div class="file-card-path">
+          <input type="text" id="path-${slot}" placeholder="C:\\path\\to\\file.csv"
+                 onblur="onPathBlur('${slot}')" onkeydown="onPathKey(event,'${slot}')">
+          <button class="btn-icon" id="br-btn-${slot}" onclick="openBrowse('${slot}')" title="Browse">📁</button>
+        </div>
+      </div>
+      <div id="chip-${slot}" class="file-chip" style="display:none;flex-shrink:0"></div>
+      <button class="btn-icon" onclick="removeFileSlot('${slot}')" title="Remove this file"
+              style="flex-shrink:0;font-size:11px;padding:5px 9px;margin-left:4px">✕</button>
+    </div>
+    <div id="cols-wrap-${slot}" class="file-cols-wrap" style="display:none">
+      <div class="file-key-bar">
+        Match key: <span id="key-val-${slot}" class="file-key-val">(auto)</span>
+        <span class="file-key-hint">— click column(s) below to set</span>
+      </div>
+      <div id="cols-${slot}" class="file-cols"></div>
+    </div>
+    <div class="file-card-sub">
+      <div id="sheet-row-${slot}" class="sheet-row" style="display:none">
+        <span class="lbl">Sheet</span>
+        <select id="sheet-${slot}" onchange="onSheetChange('${slot}')"></select>
+      </div>
+      <div id="mem-${slot}" class="mem-banner" style="display:none;margin:0"></div>
+    </div>
+  </div>`;
+}
+
+function addFileSlot() {
+  S.slotCounter++;
+  const slot = `f${S.slotCounter}`;
+  S.extraSlots.push(slot);
+  // inject card at end of .file-stack
+  const stack = document.querySelector('.file-stack');
+  const tmp = document.createElement('div');
+  tmp.innerHTML = makeFileCardHTML(slot, `File ${S.slotCounter}`);
+  stack.appendChild(tmp.firstElementChild);
+  // add hidden key-select for this slot
+  const hks = ge('hidden-key-selects');
+  if (hks) {
+    const sel = document.createElement('select');
+    sel.id = `key-${slot}`;
+    sel.innerHTML = '<option value="">Auto-detect</option>';
+    hks.appendChild(sel);
+  }
+  checkRunnable();
+}
+
+function removeFileSlot(slot) {
+  S.extraSlots = S.extraSlots.filter(s => s !== slot);
+  S[slot] = null;
+  ge(`card-${slot}`)?.remove();
+  ge(`key-${slot}`)?.remove();
+  delete S.allResults[slot];
+  _updateResultPairBar();
+  checkRunnable();
+}
+
+function renderColTags(s, columns) {
+  const wrap = ge(`cols-wrap-${s}`);
+  const el = ge(`cols-${s}`);
+  const keyValEl = ge(`key-val-${s}`);
+  if (!wrap || !el) return;
+  if (!columns || !columns.length) { wrap.style.display='none'; el.innerHTML=''; return; }
+  // clear previous key selection when a new file loads
+  if (keyValEl) keyValEl.textContent = '(auto)';
+  const ks = ge(`key-${s}`); if (ks) ks.value = '';
+  el.innerHTML = columns.map(c =>
+    `<span class="file-col-tag" data-col="${ea(c)}" onclick="onColChipClick('${s}',this)">${esc(c)}</span>`
+  ).join('');
+  wrap.style.display = 'flex';
+}
+
+function onColChipClick(slot, el) {
+  el.classList.toggle('key-selected');
+  _updateKeyBar(slot);
+  // keep legacy hidden select in sync with first selected key
+  const sel = ge(`key-${slot}`);
+  if (sel) {
+    const first = ge(`cols-${slot}`)?.querySelector('.key-selected');
+    sel.value = first ? first.dataset.col : '';
+  }
+  onKeyChange();
+}
+
+function _updateKeyBar(slot) {
+  const chips = [...(ge(`cols-${slot}`)?.querySelectorAll('.key-selected') || [])];
+  const el = ge(`key-val-${slot}`);
+  if (el) el.textContent = chips.length ? chips.map(c => c.dataset.col).join(' + ') : '(auto)';
+}
+
+function getSelectedKeys(slot) {
+  const chips = [...(ge(`cols-${slot}`)?.querySelectorAll('.key-selected') || [])];
+  const keys = chips.map(c => c.dataset.col);
+  return keys.length ? keys : null;
+}
+
 function checkRunnable() {
   const btn = ge('run-btn');
   if (S.running) { btn.disabled=true; return; }
-  const ready = S.f1 && S.f2;
-  const blocked = S.f1?.memory_status==='block' || S.f2?.memory_status==='block';
+  const allSecondary = ['f2', ...S.extraSlots];
+  const secondaryLoaded = allSecondary.some(s => S[s]);
+  const ready = S.f1 && secondaryLoaded;
+  const blocked = [S.f1, ...allSecondary.map(s=>S[s])].some(f=>f?.memory_status==='block');
   btn.disabled = !ready || blocked;
   if (blocked) ge('run-lbl').textContent = '⛔ File Too Large';
-  else ge('run-lbl').textContent = S.tab==='compare' ? '▶ Compare Files' : '▶ Validate Files';
+  else ge('run-lbl').textContent = S.tab==='compare' ? '▶ Compare Files' : '▶ Validate';
 }
 
 // ─────────────────────────────────── Browse modal
@@ -1301,33 +1591,47 @@ function selectFile(path) {
 // ─────────────────────────────────── Run / Cancel
 async function startRun() {
   clearErr();
-  if (!S.f1 || !S.f2) { showErr('Load both files first.'); return; }
+  const secondarySlots = ['f2', ...S.extraSlots].filter(s => S[s]);
+  if (!S.f1 || !secondarySlots.length) { showErr('Load files first.'); return; }
   destroyAllTabulators();
   S._tabInit = {};
   S.running = true;
+  S.allResults = {};
+  S.runQueue = [...secondarySlots];
   lockInputs(true);
   ge('card-prog').style.display='block';
   ge('card-res').style.display='none';
   startTimer();
+  await _startNextRun();
+}
 
-  const raw = ge('key-cols').value.trim();
-  const keyCols = raw ? raw.split(',').map(s=>s.trim()).filter(Boolean) : null;
+async function _startNextRun() {
+  if (!S.runQueue.length) return;
+  const slot2 = S.runQueue[0];
+  const info2 = S[slot2];
+  const label2 = ge(`lbl-${slot2}`)?.textContent || slot2;
+  ge('prog-phase').textContent = `Comparing File 1 vs ${label2}…`;
+
+  const keyColsF1 = getSelectedKeys('f1');
+  const keyColsF2 = getSelectedKeys(slot2);
+  const colMap = buildColMapPayload();
 
   try {
     let data;
     if (S.tab==='compare') {
       data = await apiPost('/api/compare', {
-        file1: ge('path-f1').value.trim(), file2: ge('path-f2').value.trim(),
-        sheet1: S.f1.sheet_name||null, sheet2: S.f2.sheet_name||null,
-        key_columns: keyCols,
+        file1: ge('path-f1').value.trim(), file2: ge(`path-${slot2}`).value.trim(),
+        sheet1: S.f1.sheet_name||null, sheet2: info2.sheet_name||null,
+        key_columns_f1: keyColsF1, key_columns_f2: keyColsF2,
+        column_map: colMap.length ? colMap : null,
         ignore_case: ge('ign-case').checked, ignore_whitespace: ge('ign-ws').checked,
       });
     } else {
       const vrCfg = vrBuildConfig();
       data = await apiPost('/api/validate', {
-        file1: ge('path-f1').value.trim(), file2: ge('path-f2').value.trim(),
-        sheet1: S.f1.sheet_name||null, sheet2: S.f2.sheet_name||null,
-        key_columns: keyCols,
+        file1: ge('path-f1').value.trim(), file2: ge(`path-${slot2}`).value.trim(),
+        sheet1: S.f1.sheet_name||null, sheet2: info2.sheet_name||null,
+        key_columns: keyColsF1,
         ...vrCfg,
       });
     }
@@ -1354,7 +1658,20 @@ function handleSSE(d) {
   if (d.type==='progress') {
     updateProg(d.phase, d.detail, d.current, d.total);
   } else if (d.type==='complete') {
-    closeSSE(); finishRun(); renderResult(d.result); loadHistory();
+    closeSSE();
+    const slot2 = S.runQueue.shift(); // dequeue completed slot
+    if (slot2) S.allResults[slot2] = d.result;
+    if (S.runQueue.length > 0) {
+      // more pairs to run — keep running state, start next
+      _startNextRun();
+    } else {
+      finishRun();
+      // show first result by default
+      const firstSlot = Object.keys(S.allResults)[0];
+      if (firstSlot) renderResult(S.allResults[firstSlot]);
+      _updateResultPairBar();
+      loadHistory();
+    }
   } else if (d.type==='error') {
     closeSSE(); finishRun(); showErr(d.message||'Unknown error.'); loadHistory();
   } else if (d.type==='cancelled') {
@@ -1374,9 +1691,14 @@ function closeSSE() { if(S.sse){S.sse.close();S.sse=null;} }
 function finishRun() { S.running=false; stopTimer(); lockInputs(false); checkRunnable(); }
 
 function lockInputs(lock) {
-  ['path-f1','path-f2','sheet-f1','sheet-f2','key-cols','ign-case','ign-ws','br-btn-f1','br-btn-f2']
-    .forEach(id=>{ const el=ge(id); if(el) el.disabled=lock; });
-  ge('run-btn').disabled=lock;
+  const allSlots = ['f1', 'f2', ...S.extraSlots];
+  allSlots.forEach(s => {
+    ['path','sheet','key','br-btn'].forEach(pfx => {
+      const el = ge(`${pfx}-${s}`); if(el) el.disabled = lock;
+    });
+  });
+  ['ign-case','ign-ws'].forEach(id=>{ const el=ge(id); if(el) el.disabled=lock; });
+  ge('run-btn').disabled = lock;
 }
 
 // ─────────────────────────────────── Progress
@@ -1406,6 +1728,28 @@ function startTimer() {
 function stopTimer() { if(S.timerIv){clearInterval(S.timerIv);S.timerIv=null;} }
 
 // ─────────────────────────────────── Results
+function _updateResultPairBar() {
+  const bar = ge('result-pair-bar');
+  if (!bar) return;
+  const slots = Object.keys(S.allResults);
+  if (slots.length <= 1) { bar.style.display='none'; return; }
+  bar.style.display = 'flex';
+  bar.innerHTML = '<span style="font-size:10px;color:var(--mut);letter-spacing:.08em;text-transform:uppercase;margin-right:4px">Results:</span>' +
+    slots.map(s => {
+      const lbl = ge(`lbl-${s}`)?.textContent || s;
+      return `<button class="btn-sm pair-btn" id="pair-btn-${s}"
+        onclick="switchResultPair('${s}')">File 1 vs ${esc(lbl)}</button>`;
+    }).join('');
+  // highlight the first slot
+  ge(`pair-btn-${slots[0]}`)?.classList.add('active');
+}
+
+function switchResultPair(slot) {
+  document.querySelectorAll('.pair-btn').forEach(b => b.classList.remove('active'));
+  ge(`pair-btn-${slot}`)?.classList.add('active');
+  if (S.allResults[slot]) renderResult(S.allResults[slot]);
+}
+
 function renderResult(result) {
   S.result = result;
   ge('card-prog').style.display='none';
@@ -1723,8 +2067,316 @@ function fmtRows(n) { if(!n)return'0'; if(n>=1e6)return(n/1e6).toFixed(1)+'M'; i
 function fmtDur(s)  { s=Math.round(s||0); if(s<60)return s+'s'; return Math.floor(s/60)+'m '+(s%60)+'s'; }
 function ago(ts)    { const d=Math.floor(Date.now()/1000-ts); if(d<60)return'just now'; if(d<3600)return Math.floor(d/60)+'m ago'; if(d<86400)return Math.floor(d/3600)+'h ago'; return Math.floor(d/86400)+'d ago'; }
 
+// ─────────────────────────────────── F-2: Key column dropdowns
+function populateKeySelect(slot, columns) {
+  const sel = ge(`key-${slot}`);
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Auto-detect</option>' +
+    columns.map(c => `<option value="${ea(c)}"${c===prev?' selected':''}>${esc(c)}</option>`).join('');
+  // If auto-detected key is known from file info, pre-select it
+  if (!prev && S[slot]?.columns?.length) {
+    // keep Auto-detect; discover_keys runs server-side
+  }
+}
+
+function onKeyChange() {
+  // Sync key-f2 to key-f1 if f2 hasn't been loaded yet (convenience default)
+  const v1 = ge('key-f1')?.value || '';
+  const sel2 = ge('key-f2');
+  if (sel2 && S.f2 && sel2.value === '' && v1) {
+    // only sync if f2 has a column with the same name
+    const opt = [...sel2.options].find(o => o.value === v1);
+    if (opt) sel2.value = v1;
+  }
+}
+
+// ─────────────────────────────────── F-3: Column mapping panel
+
+function normCol(s) { return s.toLowerCase().replace(/[\s_\-\.]/g, ''); }
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m+1}, (_, i) => Array.from({length: n+1}, (_, j) => i||j));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+function fuzzyMatchCols(onlyA, onlyB, threshold=2) {
+  return onlyA.flatMap(a =>
+    onlyB
+      .map(b => ({a, b, dist: levenshtein(normCol(a), normCol(b))}))
+      .filter(x => x.dist > 0 && x.dist <= threshold)
+      .sort((x,y) => x.dist - y.dist)
+      .slice(0, 1)
+  );
+}
+
+function buildColMappingPanel() {
+  const cols1 = S.f1?.columns || [];
+  const cols2 = S.f2?.columns || [];
+  const set2 = new Set(cols2);
+  const matched = cols1.filter(c => set2.has(c));
+  const onlyA = cols1.filter(c => !set2.has(c));
+  const set1 = new Set(cols1);
+  const onlyB = cols2.filter(c => !set1.has(c));
+  const fuzzy = fuzzyMatchCols(onlyA, onlyB);
+
+  S.colMap = {matched, onlyA, onlyB, fuzzy, userMapped: [], rejectedFuzzy: new Set()};
+  S.colMapVisible = true;
+  renderColMappingPanel();
+}
+
+function renderColMappingPanel() {
+  const panel = ge('col-map-panel');
+  const groups = ge('cm-groups');
+  if (!panel || !groups || !S.colMap) return;
+
+  if (S.tab !== 'vset') {
+    panel.style.display = S.colMapVisible ? '' : 'none';
+  }
+
+  const {matched, onlyA, onlyB, fuzzy, userMapped, rejectedFuzzy} = S.colMap;
+  const activeFuzzy = fuzzy.filter(f => !rejectedFuzzy.has(f.a+'→'+f.b));
+
+  let h = '';
+
+  // Matched
+  h += `<div class="cm-group">
+    <div class="cm-group-hd">✅ Matched (${matched.length})</div>
+    <div class="cm-tags">${matched.length
+      ? matched.map(c=>`<span class="cm-tag ok">${esc(c)}</span>`).join('')
+      : '<span class="cm-empty">none</span>'}</div>
+  </div>`;
+
+  // Extra in A
+  const unmappedA = onlyA.filter(c => !userMapped.some(m=>m.f1===c) && !activeFuzzy.some(f=>f.a===c));
+  h += `<div class="cm-group">
+    <div class="cm-group-hd">⚠ Extra in Reference (${onlyA.length})</div>
+    <div class="cm-tags">${unmappedA.length
+      ? unmappedA.map(c=>`<span class="cm-tag warn">${esc(c)}</span>`).join('')
+      : onlyA.length ? '<span class="cm-empty">all mapped</span>' : '<span class="cm-empty">none</span>'}</div>
+  </div>`;
+
+  // Extra in B
+  const unmappedB = onlyB.filter(c => !userMapped.some(m=>m.f2===c) && !activeFuzzy.some(f=>f.b===c));
+  h += `<div class="cm-group">
+    <div class="cm-group-hd">⚠ Extra in Candidate (${onlyB.length})</div>
+    <div class="cm-tags">${unmappedB.length
+      ? unmappedB.map(c=>`<span class="cm-tag warn">${esc(c)}</span>`).join('')
+      : onlyB.length ? '<span class="cm-empty">all mapped</span>' : '<span class="cm-empty">none</span>'}</div>
+  </div>`;
+
+  // Fuzzy + user-mapped
+  if (activeFuzzy.length || userMapped.length) {
+    const fzTags = activeFuzzy.map((f,i) =>
+      `<span class="cm-tag fuzzy">${esc(f.a)} → ${esc(f.b)}
+        <button class="cm-act" title="Accept mapping" onclick="cmAccept(${i})">✓</button>
+        <button class="cm-act" title="Reject" onclick="cmReject(${i})" style="color:var(--red)">✕</button>
+      </span>`
+    ).join('');
+    const umTags = userMapped.map((m,i) =>
+      `<span class="cm-tag user">${esc(m.f1)} ↔ ${esc(m.f2)}
+        <button class="cm-act" title="Remove mapping" onclick="cmRemoveUser(${i})" style="color:var(--red)">✕</button>
+      </span>`
+    ).join('');
+    h += `<div class="cm-group">
+      <div class="cm-group-hd">🔁 Suggested / Mapped</div>
+      <div class="cm-tags">${fzTags}${umTags}${!fzTags&&!umTags?'<span class="cm-empty">none</span>':''}</div>
+    </div>`;
+  }
+
+  groups.innerHTML = h;
+}
+
+function cmAccept(idx) {
+  if (!S.colMap) return;
+  const active = S.colMap.fuzzy.filter(f => !S.colMap.rejectedFuzzy.has(f.a+'→'+f.b));
+  const f = active[idx];
+  if (!f) return;
+  S.colMap.userMapped.push({f1: f.a, f2: f.b});
+  S.colMap.rejectedFuzzy.add(f.a+'→'+f.b);
+  renderColMappingPanel();
+}
+
+function cmReject(idx) {
+  if (!S.colMap) return;
+  const active = S.colMap.fuzzy.filter(f => !S.colMap.rejectedFuzzy.has(f.a+'→'+f.b));
+  const f = active[idx];
+  if (!f) return;
+  S.colMap.rejectedFuzzy.add(f.a+'→'+f.b);
+  renderColMappingPanel();
+}
+
+function cmRemoveUser(idx) {
+  if (!S.colMap) return;
+  S.colMap.userMapped.splice(idx, 1);
+  renderColMappingPanel();
+}
+
+function toggleColMapPanel() {
+  S.colMapVisible = !S.colMapVisible;
+  const panel = ge('col-map-panel');
+  const btn = ge('cm-toggle-btn');
+  if (panel) panel.style.display = S.colMapVisible ? '' : 'none';
+  if (btn) btn.textContent = S.colMapVisible ? 'Hide' : 'Show';
+}
+
+function buildColMapPayload() {
+  if (!S.colMap) return [];
+  return (S.colMap.userMapped || []).map(m => ({f1: m.f1, f2: m.f2}));
+}
+
+// ─────────────────────────────────── F-4: Value Set Compare
+
+let _vsetPairId = 0;
+
+function vsetInit() {
+  const container = ge('vset-pairs');
+  if (!container || container.children.length > 0) return;
+  vsetAddPair();
+}
+
+function vsetAddPair() {
+  const container = ge('vset-pairs');
+  if (!container) return;
+  const pairs = container.querySelectorAll('.vset-pair');
+  if (pairs.length >= 3) return;
+  const id = ++_vsetPairId;
+  const cols1 = S.f1?.columns || [];
+  const cols2 = S.f2?.columns || [];
+  const mkOpts = (cols, selId) =>
+    `<select id="${selId}" class="vset-col-sel" onchange="vsetCheckRunnable()" style="width:100%">
+      <option value="">— pick column —</option>
+      ${cols.map(c=>`<option value="${ea(c)}">${esc(c)}</option>`).join('')}
+    </select>`;
+  const row = document.createElement('div');
+  row.className = 'vset-pair'; row.id = 'vset-pair-'+id;
+  row.innerHTML = `
+    <div class="vset-pair-g">
+      <span class="lbl" style="font-size:9px">Column from File 1</span>
+      ${mkOpts(cols1,'vset-c1-'+id)}
+    </div>
+    <span class="vset-pair-sep">↔</span>
+    <div class="vset-pair-g">
+      <span class="lbl" style="font-size:9px">Column from File 2</span>
+      ${mkOpts(cols2,'vset-c2-'+id)}
+    </div>
+    <div style="padding-bottom:8px;flex-shrink:0">
+      <button class="btn-icon" onclick="vsetRemovePair(${id})" title="Remove pair" style="padding:5px 8px;font-size:11px">✕</button>
+    </div>`;
+  container.appendChild(row);
+  vsetCheckRunnable();
+}
+
+function vsetRemovePair(id) {
+  const row = ge('vset-pair-'+id);
+  if (row) row.remove();
+  vsetCheckRunnable();
+}
+
+function vsetCheckRunnable() {
+  const btn = ge('vset-run-btn');
+  if (!btn) return;
+  if (!S.f1 || !S.f2) { btn.disabled=true; return; }
+  const pairs = ge('vset-pairs')?.querySelectorAll('.vset-pair') || [];
+  if (!pairs.length) { vsetAddPair(); btn.disabled=true; return; }
+  // Also update column options if files changed
+  pairs.forEach(row => {
+    const id = row.id.replace('vset-pair-','');
+    const sel1 = ge('vset-c1-'+id), sel2 = ge('vset-c2-'+id);
+    if (sel1 && sel1.options.length <= 1 && S.f1?.columns?.length) {
+      const prev = sel1.value;
+      sel1.innerHTML = '<option value="">— pick column —</option>' +
+        (S.f1.columns||[]).map(c=>`<option value="${ea(c)}"${c===prev?' selected':''}>${esc(c)}</option>`).join('');
+    }
+    if (sel2 && sel2.options.length <= 1 && S.f2?.columns?.length) {
+      const prev = sel2.value;
+      sel2.innerHTML = '<option value="">— pick column —</option>' +
+        (S.f2.columns||[]).map(c=>`<option value="${ea(c)}"${c===prev?' selected':''}>${esc(c)}</option>`).join('');
+    }
+  });
+  const anyReady = [...pairs].some(row => {
+    const id = row.id.replace('vset-pair-','');
+    return (ge('vset-c1-'+id)?.value||'') && (ge('vset-c2-'+id)?.value||'');
+  });
+  btn.disabled = !anyReady;
+}
+
+async function startValueSetCompare() {
+  const btn = ge('vset-run-btn');
+  if (!S.f1 || !S.f2) return;
+  clearErr();
+  const pairs = [];
+  ge('vset-pairs').querySelectorAll('.vset-pair').forEach(row => {
+    const id = row.id.replace('vset-pair-','');
+    const c1 = ge('vset-c1-'+id)?.value||'';
+    const c2 = ge('vset-c2-'+id)?.value||'';
+    if (c1 && c2) pairs.push({f1_col: c1, f2_col: c2});
+  });
+  if (!pairs.length) { showErr('Select at least one column pair.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Comparing…';
+  ge('vset-results').innerHTML = '<div class="no-data">Running…</div>';
+
+  try {
+    const resp = await apiPost('/api/value_set_compare', {
+      file1: ge('path-f1').value.trim(),
+      file2: ge('path-f2').value.trim(),
+      sheet1: S.f1.sheet_name||null,
+      sheet2: S.f2.sheet_name||null,
+      pairs,
+    });
+    renderVsetResults(resp.results || []);
+  } catch(e) {
+    showErr('Value Set Compare failed: '+e.message);
+    ge('vset-results').innerHTML = '';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ Compare Values';
+  }
+}
+
+function renderVsetResults(results) {
+  const el = ge('vset-results');
+  if (!results.length) { el.innerHTML = '<div class="no-data">No results.</div>'; return; }
+
+  el.innerHTML = results.map((r, ri) => {
+    if (r.error) return `<div class="vset-result-item"><div class="vset-ri-title">${esc(r.f1_col)} ↔ ${esc(r.f2_col)}</div><span class="c-red">Error: ${esc(r.error)}</span></div>`;
+    const onlyA = r.only_in_f1_sample || [];
+    const onlyB = r.only_in_f2_sample || [];
+    const both  = r.in_both_sample || [];
+    return `<div class="vset-result-item">
+      <div class="vset-ri-title">${esc(r.f1_col)} ↔ ${esc(r.f2_col)}</div>
+      <div class="vset-stats">
+        <div class="vset-stat sa" title="Click to show sample" onclick="toggleVsetSample('vsa-${ri}',this)">Only in Reference: <strong>${(r.only_in_f1_count||0).toLocaleString()}</strong></div>
+        <div class="vset-stat sb" title="Click to show sample" onclick="toggleVsetSample('vsb-${ri}',this)">Only in Candidate: <strong>${(r.only_in_f2_count||0).toLocaleString()}</strong></div>
+        <div class="vset-stat sc" title="Click to show sample" onclick="toggleVsetSample('vsc-${ri}',this)">In Both: <strong>${(r.in_both_count||0).toLocaleString()}</strong></div>
+      </div>
+      <div class="vset-samp" id="vsa-${ri}">${onlyA.map(esc).join(', ')}</div>
+      <div class="vset-samp" id="vsb-${ri}">${onlyB.map(esc).join(', ')}</div>
+      <div class="vset-samp" id="vsc-${ri}">${both.map(esc).join(', ')}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleVsetSample(id, statEl) {
+  const el = ge(id);
+  if (!el) return;
+  const vis = el.style.display === 'block';
+  // Hide all siblings first
+  el.closest('.vset-result-item').querySelectorAll('.vset-samp').forEach(s => s.style.display='none');
+  if (!vis) el.style.display = 'block';
+}
+
 // ─────────────────────────────────── Init
-document.addEventListener('DOMContentLoaded', () => { loadHistory(); });
+document.addEventListener('DOMContentLoaded', () => {
+  loadHistory();
+  vsetInit();
+});
 </script>
 </body>
 </html>
