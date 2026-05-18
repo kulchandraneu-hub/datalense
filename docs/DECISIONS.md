@@ -188,6 +188,46 @@ _Format: date, decision, rationale, alternatives considered._
 
 ---
 
+### D-P3-T1 — Per-column counts moved to Polars expression plan
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (Phase 3, P3-T1, 2026-05-18)
+- **Decision:** Replace Python `for sem_row in sem_sample:` loop with `sem_agg_exprs` + `raw_agg_exprs` computed in a single `.select().collect()` pass over the full joined LazyFrame.
+- **Rationale:** Python loop over ≤1,000 sample rows gave wrong per-column counts for large files. Numerators were sample-capped even after the D-007 denominator fix (D-007 fixed `change_rate` denominator to `total_rows_f1` but the numerator remained sample-based).
+- **Fix:** `sem_agg_exprs` + `raw_agg_exprs` in a single `.select().collect()`. Exact per-column `modified_count` and `formatting_only_count` for all file sizes.
+- **Benchmark impact:** 344s → 93.9s (dominant single-step gain).
+
+---
+
+### D-P3-T2 — Two joins merged into one combined join
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (Phase 3, P3-T2, 2026-05-18)
+- **Decision:** Replace the separate semantic join and raw join (two full-outer joins) with a single combined join. Each file's frame carries both semantic ({c}_s1/{c}_s2) and raw ({c}_r1/{c}_r2) columns before the join. Row classification runs in a single `when/then/otherwise` expression plan.
+- **Rationale:** Each full-outer join was a full file scan. Two joins = two scans of the 500k-row result. The D-010 subtraction approach (formatting_only = raw_both_diff − modified) required the second scan and was explicitly noted as a Phase 3 trade-off.
+- **Result:** 93.9s → 85.7s. Collects reduced from 6 → 4.
+- **Alternatives considered:** Anti-join approach (materialise key sets) — more complex, no performance advantage.
+
+---
+
+### D-P3-T3 — Batch column profiling via single streaming collect
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (Phase 3, P3-T3, 2026-05-18)
+- **Decision:** Replace per-column `.collect()` calls in `profile_file()` with a single `.select([all_exprs]).collect(engine="streaming")` that computes all column stats in one pass.
+- **Rationale:** `profile_file()` was executing ~176 `.collect()` calls (8 type-check expressions × 22 columns). Each `.collect()` triggers a full file scan. At 500k rows × 22 columns this dominated the benchmark runtime.
+- **Fix:** All null-type expressions, type-check casts, and aggregate stats assembled into one expression list; a single `.select().collect()` executes the full plan in one pass. Boolean cast guard added for Utf8/String columns (Polars 1.x raises on Boolean cast of string columns).
+- **Benchmark impact:** 85.7s → 2.1s (P3-T3 was the dominant gain; 176 `.collect()` calls reduced to 2).
+
+---
+
+### D-P3-T4 — Pre-sort keys before join + streaming CSV sink
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (Phase 3, P3-T4, 2026-05-18)
+- **Decision:** Sort both LazyFrames by key columns before the combined join. Use Polars streaming sink for CSV diff export rather than collecting the full diff into RAM.
+- **Rationale:** Pre-sorting enables a merge-join strategy (O(n) merge pass) over a hash-join (O(n) hash table in RAM) for very large files. The streaming sink avoids loading full diff CSVs into RAM during export, which would be prohibitive for 5GB files.
+- **Benchmark impact:** 2.1s → 2.4s at 500k rows (within noise; sort overhead visible at small scale). Benefit realises at 5GB scale where the hash table would otherwise require significant RAM.
+- **Trade-off:** Marginal regression at small scale is acceptable given the 5GB production use case.
+
+---
+
 ## Invariants (never violate these)
 
 These are non-negotiable constraints carried forward from the original architecture:

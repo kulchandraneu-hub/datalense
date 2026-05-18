@@ -147,12 +147,10 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 - **JoinDate note:** Both files infer JoinDate as `String`. File B has 9,904 US-format dates that differ in string form from ISO dates in A → those rows ARE detected as `modified` (string comparison "2021-02-08" != "01/02/2021" is True). No JoinDate-related engine bug.
 
 ### KI-017 — Two full-file join scans now run per compare (performance regression from P1-T1)
-- **Status:** Known trade-off — acceptable until Phase 3
+- **Status:** FIXED (Phase 3, P3-T2, 2026-05-18)
 - **File:** `differ.py`
 - **Severity:** MEDIUM (performance only, no correctness impact)
-- **Impact:** Benchmark elapsed time increased from ~168s to ~344s. The `raw_joined` filter+count pass (for `formatting_only` count) is a second full scan of the 500k-row join result in addition to the semantic pass. For 5GB files this could be significant.
-- **Fix:** P3-T3 — Merge semantic and raw joins into one. A single combined join would allow both semantic and raw diffs to be classified in one Polars expression plan, eliminating the second scan.
-- **Fix target:** Phase 3.
+- **Fix applied:** Fixed Phase 3 (P3-T2). Two joins merged into one combined join. 6 collects → 4. A single combined join carries both semantic ({c}_s1/{c}_s2) and raw ({c}_r1/{c}_r2) columns, allowing both semantic and raw diffs to be classified in one Polars expression plan. Benchmark: 344s → 85.7s at this step.
 
 ### KI-019 — Export modal / download has no progress indicator for large exports
 - **Status:** FIXED (Phase 2.6, 2026-05-16)
@@ -191,12 +189,10 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 ---
 
 ### KI-018 — `ColumnDiffStats.modified_count` and `formatting_only_count` are sample-based (≤1,000 rows)
-- **Status:** Unfixed — known gap after P1-T1
+- **Status:** FIXED (Phase 3, P3-T1, 2026-05-18)
 - **File:** `differ.py` (sample loop)
 - **Severity:** MEDIUM
-- **Impact:** Per-column `modified_count` and `formatting_only_count` in `column_diffs` are still collected from the Python loop over `sem_sample` (at most 1,000 rows). `change_rate` denominator was fixed (D-007: now uses `total_rows_f1`) but the numerator is still sample-based, so rates are underestimates.
-- **Fix:** P3-T1 — Replace Python loop with Polars per-column expression plan. Compute exact per-column counts in the same full-file pass.
-- **Fix target:** Phase 3.
+- **Fix applied:** Fixed Phase 3 (P3-T1). Python sample loop replaced with Polars full-file expression plan. `sem_agg_exprs` + `raw_agg_exprs` computed in a single `.select().collect()` pass over the full joined LazyFrame. Per-column counts are now exact for all file sizes. Benchmark: 344s → 93.9s at this step.
 
 ---
 
