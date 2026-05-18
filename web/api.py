@@ -493,6 +493,22 @@ if _static_dir.exists() and any(_static_dir.iterdir()):
 # Background job runners
 # ---------------------------------------------------------------------------
 
+# Maps every phase name emitted by the compare pipeline to a 1-based step number.
+# The 8 phases mirror the order in compare.py: Loading → Schema → Profiling →
+# Key Discovery → Key Validation → Diffing → Validation → Exporting.
+_PHASE_STEPS: dict[str, int] = {
+    "Loading":        1,
+    "Schema":         2,
+    "Profiling":      3,
+    "Key Discovery":  4,
+    "Key Validation": 5,
+    "Diffing":        6,
+    "Validation":     7,
+    "Exporting":      8,
+}
+_TOTAL_STEPS = 8
+
+
 def _make_progress(job_id: str) -> Progress:
     def _cb(phase: str, detail: str, current: int, total: int) -> None:
         job = jobs.get(job_id)
@@ -503,6 +519,10 @@ def _make_progress(job_id: str) -> Progress:
                 "detail": detail,
                 "current": current,
                 "total": total,
+                # Granular step fields — added for KI-020 (P4-T3).
+                # Backward-compatible: old clients that ignore unknown fields are unaffected.
+                "step": _PHASE_STEPS.get(phase, 0),
+                "total_steps": _TOTAL_STEPS,
             })
     return Progress(callback=_cb)
 

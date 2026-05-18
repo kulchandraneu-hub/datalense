@@ -771,6 +771,7 @@ td.vr-del-cell{width:28px;text-align:center}
   <div class="card" id="card-prog" style="display:none">
     <div class="prog-hd">
       <span id="prog-phase">Starting…</span>
+      <span id="prog-step" style="font-size:10px;letter-spacing:.08em;color:var(--mut);margin-left:8px;flex-shrink:0"></span>
       <button class="btn-stop" onclick="cancelRun()">■ Stop</button>
     </div>
     <div id="prog-detail"></div>
@@ -1823,8 +1824,13 @@ function openSSE(jobId) {
 
 function handleSSE(d) {
   if (d.type==='progress') {
-    updateProg(d.phase, d.detail, d.current, d.total);
+    updateProg(d.phase, d.detail, d.current, d.total, d.step, d.total_steps);
   } else if (d.type==='complete') {
+    // Show 100% with green bar before rendering result (card hides immediately after)
+    const _fill = ge('prog-fill');
+    if (_fill) { _fill.classList.remove('indeterminate'); _fill.style.width='100%'; _fill.style.background='var(--grn)'; }
+    const _ph = ge('prog-phase'); if (_ph) _ph.textContent = '✓ Done';
+    const _st = ge('prog-step');  if (_st) _st.textContent = '';
     closeSSE();
     const slot2 = S.runQueue.shift(); // dequeue completed slot
     if (slot2) S.allResults[slot2] = d.result;
@@ -1869,25 +1875,49 @@ function lockInputs(lock) {
 }
 
 // ─────────────────────────────────── Progress
-function updateProg(phase, detail, current, total) {
-  ge('prog-phase').textContent = phase||'…';
-  ge('prog-detail').textContent = detail||'';
+// Deterministic step→percentage table (spec: P4-T3).
+// Index = step number (1-based); index 0 unused.
+const _STEP_PCT = [0, 5, 15, 30, 50, 60, 75, 90, 100];
+
+function updateProg(phase, detail, current, total, step, totalSteps) {
+  ge('prog-phase').textContent = phase || '…';
+  ge('prog-detail').textContent = detail || '';
   const fill = ge('prog-fill');
-  if (total>0) {
-    const pct = Math.min(100, Math.round(current/total*100));
-    fill.classList.remove('indeterminate'); fill.style.width=pct+'%';
+  const stepEl = ge('prog-step');
+
+  if (step > 0) {
+    // Deterministic: use step→pct table. Gracefully clamp if step out of range.
+    const pct = _STEP_PCT[Math.min(step, _STEP_PCT.length - 1)] ?? 5;
+    fill.classList.remove('indeterminate');
+    fill.style.width = pct + '%';
+    fill.style.background = '';          // reset green from previous complete
+    if (stepEl) stepEl.textContent = `Step ${step} / ${totalSteps || _STEP_PCT.length - 1}`;
+    ge('prog-frac').textContent = '';
+  } else if (total > 0) {
+    // Fallback for events without step field (backward-compat / defensive)
+    const pct = Math.min(100, Math.round(current / total * 100));
+    fill.classList.remove('indeterminate');
+    fill.style.width = pct + '%';
+    fill.style.background = '';
+    if (stepEl) stepEl.textContent = '';
     ge('prog-frac').textContent = `${current} / ${total}`;
   } else {
-    fill.classList.add('indeterminate'); fill.style.width='';
-    ge('prog-frac').textContent='';
+    // No usable progress info — show indeterminate bar
+    fill.classList.add('indeterminate');
+    fill.style.width = '';
+    fill.style.background = '';
+    if (stepEl) stepEl.textContent = '';
+    ge('prog-frac').textContent = '';
   }
 }
 
 function startTimer() {
   S.timerStart = Date.now();
   ge('prog-timer').textContent='0s';
-  ge('prog-fill').classList.add('indeterminate'); ge('prog-fill').style.width='';
-  ge('prog-phase').textContent='Starting…'; ge('prog-detail').textContent=''; ge('prog-frac').textContent='';
+  const _pf = ge('prog-fill');
+  _pf.classList.add('indeterminate'); _pf.style.width=''; _pf.style.background='';
+  ge('prog-phase').textContent='Starting…'; ge('prog-detail').textContent='';
+  ge('prog-frac').textContent=''; const _ps = ge('prog-step'); if (_ps) _ps.textContent='';
   S.timerIv = setInterval(()=>{
     ge('prog-timer').textContent = fmtDur(Math.floor((Date.now()-S.timerStart)/1000));
   }, 1000);
