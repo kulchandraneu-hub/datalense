@@ -309,6 +309,15 @@ _Format: date, decision, rationale, alternatives considered._
 
 ---
 
+### D-P5-T5 — Launcher scripts chosen over .exe installer
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (P5-T5, 2026-05-18)
+- **Decision:** Ship `run_datalense.bat` (Windows) and `run_datalense.sh` (Mac/Linux) instead of a compiled .exe installer.
+- **Rationale:** Corporate environments frequently block .exe downloads and installers requiring admin rights. `.bat`/`.sh` scripts require no admin, no IT approval, and no compiled binaries — only Python, which is commonly pre-approved. Polars importability check (not venv folder existence) ensures pip only runs when needed, making re-runs safe on interrupted installs.
+- **Alternatives considered:** PyInstaller .exe — blocked by corporate AV/policy in target environments. NSIS installer — requires admin rights. Docker — too heavy for the target user profile (non-technical analysts).
+
+---
+
 ## Invariants (never violate these)
 
 These are non-negotiable constraints carried forward from the original architecture:

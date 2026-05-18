@@ -1,6 +1,6 @@
 # Implementation Roadmap — DataLens
 
-_Created: 2026-05-14. Last updated: 2026-05-18 (Phase 5 — Premium features in progress; 117/117 tests pass)._
+_Created: 2026-05-14. Last updated: 2026-05-18 (Phase 5 complete — 117/117 tests pass)._
 
 ---
 
@@ -193,7 +193,7 @@ Also fixed KI-014: `compare.py` smoke test now asserts `is_full_count is True`.
 
 **Goal:** Full diff export, ignore rules, preview mode, and packaging for non-technical users.
 **Prerequisite:** Phase 4 complete.
-**Status: In progress — P5-T1 through P5-T4 complete; 117/117 tests pass.**
+**Status: Complete — P5-T1 through P5-T5 complete; 117/117 tests pass.**
 
 ### P5-T1: File paths in DiffResult + Excel summary filenames `[x]`
 - **Completed:** 2026-05-18
@@ -211,10 +211,13 @@ Also fixed KI-014: `compare.py` smoke test now asserts `is_full_count is True`.
 - **Completed:** 2026-05-18
 - Preview checkbox truncates both files to 100k rows via `.head()` before compare. Yellow banner shown on results. `(sample)` suffix added to metric counts. Run Full Compare button re-runs without preview. `preview_mode=False` is fully backward compatible.
 
-### P5-T5: Windows packaging / installer `[ ]`
-- `run_datalense.bat` + `run_datalense.sh` launcher scripts.
-- `docs/INSTALL.md` for non-technical users.
-- One-click setup for users without Python knowledge.
+### P5-T5: Windows packaging / installer `[x]`
+- **Completed:** 2026-05-18
+- `run_datalense.bat`: checks Python 3.10+, creates `.venv`, installs via pip only when polars is not importable, starts uvicorn, opens browser after 2-second delay.
+- `run_datalense.sh`: same flow for Mac/Linux (`open`/`xdg-open`), uses `python3`.
+- `requirements.txt`: all six runtime dependencies pinned by name.
+- `docs/INSTALL.md`: non-technical user guide with Windows/Mac/Linux steps, system requirements, and troubleshooting.
+- No Python files modified. All 117 tests pass.
 
 ---
 

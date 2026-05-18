@@ -1,7 +1,6 @@
-# Phase 5 Summary — DataLens (In Progress)
+# Phase 5 Summary — DataLens
 
-Started: 2026-05-18
-Tests: 117 passing
+Completed: 2026-05-18. 117 tests passing.
 
 ## Completed
 
@@ -25,8 +24,8 @@ Preview checkbox truncates both files to 100k rows via `.head()` before compare.
 Yellow banner on results. `(sample)` suffix on metric counts.
 Run Full Compare button re-runs without preview. `preview_mode=False` is fully backward compatible.
 
-## Pending
-
-### P5-T5 Windows Packaging
-One-click installer for non-technical users.
-`run_datalense.bat` + `run_datalense.sh` launcher scripts + `docs/INSTALL.md`.
+### P5-T5 Windows/Mac Packaging
+`run_datalense.bat` and `run_datalense.sh` launcher scripts. Double-click on Windows, `bash run_datalense.sh` on Mac/Linux.
+Auto-creates venv, installs dependencies once, starts server, opens browser.
+No admin rights required. No .exe — works in corporate environments where Python is allowed.
+`docs/INSTALL.md` added for non-technical users.
