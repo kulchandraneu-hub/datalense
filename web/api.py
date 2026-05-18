@@ -210,6 +210,19 @@ async def get_headers(path: str, sheet: Optional[str] = None):
         raise HTTPException(500, f"Could not read headers: {exc}")
 
 
+@app.get("/api/sheets")
+async def get_sheets(path: str):
+    """Return sheet names for an Excel file. Returns [] for CSV/TSV."""
+    p = Path(path)
+    if not p.exists():
+        raise HTTPException(404, f"File not found: {path}")
+    try:
+        from excel_loader import list_sheets
+        return {"sheets": list_sheets(p)}
+    except Exception as exc:
+        raise HTTPException(500, f"Could not read sheets: {exc}")
+
+
 @app.post("/api/value_set_compare")
 async def value_set_compare(req: ValueSetRequest):
     """
