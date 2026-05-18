@@ -582,6 +582,14 @@ td.vr-del-cell{width:28px;text-align:center}
 .ir-date-sub{margin-top:5px;margin-left:20px;display:flex;align-items:center;gap:8px}
 .ir-date-sub .lbl{margin:0;white-space:nowrap}
 .ir-date-sub input{width:160px}
+/* ── Preview mode banner ── */
+.preview-banner{display:none;align-items:center;gap:10px;padding:7px 12px;margin-bottom:10px;
+  background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);color:var(--yel);font-size:11px}
+.preview-banner.visible{display:flex}
+.preview-banner-txt{flex:1}
+.btn-full-run{background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.5);color:var(--yel);
+  padding:3px 12px;font-size:11px;font-family:var(--font);cursor:pointer;transition:background .15s}
+.btn-full-run:hover{background:rgba(245,158,11,.28)}
 .ir-reset{font-size:10px;color:var(--mut);cursor:pointer;text-decoration:underline;opacity:.6;
   margin-top:10px;display:inline-block;background:none;border:none;font-family:var(--font);padding:0}
 .ir-reset:hover{opacity:1;color:var(--txt)}
@@ -725,6 +733,11 @@ td.vr-del-cell{width:28px;text-align:center}
       <button class="btn-primary" id="run-btn" onclick="startRun()" disabled>
         <span id="run-lbl">▶ Compare Files</span>
       </button>
+      <label class="opts-lbl" id="preview-lbl">
+        <input type="checkbox" id="preview-mode" onchange="onPreviewModeChange()">
+        Preview mode — first 100k rows only
+        <i class="opt-tip" data-tip="Truncates both files to the first 100 000 rows so you can verify settings quickly. Re-run without preview for full counts.">?</i>
+      </label>
     </div>
 
     <!-- Column Mapping Panel (F-3) — shown when both files are loaded -->
@@ -847,6 +860,10 @@ td.vr-del-cell{width:28px;text-align:center}
   <!-- ── Results Card ── -->
   <div class="card" id="card-res" style="display:none">
     <div id="result-pair-bar" style="display:none;flex-wrap:wrap;gap:4px;margin-bottom:10px;align-items:center"></div>
+    <div class="preview-banner" id="preview-banner">
+      <span class="preview-banner-txt">⚡ Preview mode — showing first 100k rows only. Counts marked (sample) are not final.</span>
+      <button class="btn-full-run" onclick="runFullCompare()">Run Full Compare</button>
+    </div>
     <div class="metric-bar" id="metric-bar"></div>
     <div id="schema-panel" style="display:none"></div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
@@ -1422,6 +1439,9 @@ function switchTab(tab) {
   const irPanel = ge('ignore-rules-panel');
   if (irPanel) irPanel.style.display = isCompare ? '' : 'none';
 
+  const pvLbl = ge('preview-lbl');
+  if (pvLbl) pvLbl.style.display = isCompare ? '' : 'none';
+
   ge('val-rules-panel').style.display = isValidate ? '' : 'none';
   ge('run-btn').style.display = isVset ? 'none' : '';
 
@@ -1442,6 +1462,21 @@ function switchTab(tab) {
   const [l1, l2] = FILE_LABELS[tab] || FILE_LABELS.compare;
   const lbl1 = ge('lbl-f1'); if (lbl1) lbl1.textContent = l1;
   const lbl2 = ge('lbl-f2'); if (lbl2) lbl2.textContent = l2;
+
+  // Hide diff-only sections (tbl-cdiff, tbl-sdiff, filter pills, side-by-side toggle)
+  // when not on the Compare tab. Restore based on inner result tab when returning.
+  const rtDiff = ge('rt-diff');
+  if (rtDiff) {
+    if (!isCompare) {
+      rtDiff.style.display = 'none';
+    } else {
+      // Restore: visible only if the inner diff result tab is (or will be) active
+      rtDiff.style.display = (!S.resultTab || S.resultTab === 'diff') ? 'block' : 'none';
+    }
+  }
+  // Hide metric bar (diff-specific counts) on non-compare tabs
+  const metricBar = ge('metric-bar');
+  if (metricBar) metricBar.style.display = isCompare ? '' : 'none';
 
   renderComparePlan();
   checkRunnable();
@@ -1845,6 +1880,7 @@ async function _startNextRun() {
         column_map: colMap.length ? colMap : null,
         compare_columns: compareColumns,
         ignore_rules: getIgnoreRules(),
+        preview_mode: !!(ge('preview-mode')?.checked),
       });
     } else {
       const vrCfg = vrBuildConfig();
@@ -1922,7 +1958,7 @@ function lockInputs(lock) {
       const el = ge(`${pfx}-${s}`); if(el) el.disabled = lock;
     });
   });
-  ['ign-case','ign-ws','ign-nvb','ign-date','ign-date-fmt'].forEach(id=>{ const el=ge(id); if(el) el.disabled=lock; });
+  ['ign-case','ign-ws','ign-nvb','ign-date','ign-date-fmt','preview-mode'].forEach(id=>{ const el=ge(id); if(el) el.disabled=lock; });
   ge('run-btn').disabled = lock;
 }
 
@@ -2003,6 +2039,11 @@ function renderResult(result) {
   S.result = result;
   ge('card-prog').style.display='none';
   ge('card-res').style.display='block';
+
+  // Preview banner
+  const banner = ge('preview-banner');
+  if (banner) banner.classList.toggle('visible', !!(result.diff?.preview_mode));
+
   renderMetricBar(result);
   renderSchemaPanel(result.schema);
   buildResultTabs(result);
@@ -2028,15 +2069,16 @@ function renderMetricBar(r) {
   }
   if (r.diff) {
     const d=r.diff;
-    h += `<div class="metric m-added">+${d.added_rows.toLocaleString()} ADDED</div>`;
-    h += `<div class="metric m-removed">−${d.removed_rows.toLocaleString()} REMOVED</div>`;
-    h += `<div class="metric m-modified">~ ${d.modified_rows.toLocaleString()} MODIFIED</div>`;
+    const samp = d.preview_mode ? ' (sample)' : '';
+    h += `<div class="metric m-added">+${d.added_rows.toLocaleString()} ADDED${samp}</div>`;
+    h += `<div class="metric m-removed">−${d.removed_rows.toLocaleString()} REMOVED${samp}</div>`;
+    h += `<div class="metric m-modified">~ ${d.modified_rows.toLocaleString()} MODIFIED${samp}</div>`;
     if (d.formatting_only_rows>0)
-      h += `<div class="metric m-fmt" title="Rows with raw string differences but identical semantic values (e.g. 50000 vs 50000.0)">${d.formatting_only_rows.toLocaleString()} FMT ONLY</div>`;
-    h += `<div class="metric m-fmt">${fmtRows(d.total_rows_f1)} ↔ ${fmtRows(d.total_rows_f2)} ROWS</div>`;
+      h += `<div class="metric m-fmt" title="Rows with raw string differences but identical semantic values (e.g. 50000 vs 50000.0)">${d.formatting_only_rows.toLocaleString()} FMT ONLY${samp}</div>`;
+    h += `<div class="metric m-fmt">${fmtRows(d.total_rows_f1)} ↔ ${fmtRows(d.total_rows_f2)} ROWS${samp}</div>`;
     if (d.key_columns?.length)
       h += `<div class="metric m-fmt" title="Key columns used for row matching">KEY: ${d.key_columns.map(k=>`<strong>${esc(k)}</strong>`).join(', ')}</div>`;
-    if (d.is_full_count === false)
+    if (d.is_full_count === false && !d.preview_mode)
       h += `<div class="metric" style="border-color:var(--yel);background:rgba(245,158,11,.1);color:var(--yel)" title="Key column has duplicates — counts may be inflated due to Cartesian product rows">⚠ ESTIMATE (duplicate keys)</div>`;
   }
   if (r.duration_s!=null)
@@ -2609,6 +2651,17 @@ function getIgnoreRules() {
   const dateFmt = (ge('ign-date-fmt')?.value || '').trim();
   if (rules.normalize_dates && dateFmt) rules.date_format = dateFmt;
   return rules;
+}
+
+function onPreviewModeChange() {
+  // No visual feedback needed — checkbox state is read at run time.
+}
+
+function runFullCompare() {
+  // Uncheck preview mode and re-run with the same settings.
+  const cb = ge('preview-mode');
+  if (cb) cb.checked = false;
+  startRun();
 }
 
 // ── Win-1: render the Compare Plan summary card
