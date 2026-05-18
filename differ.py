@@ -52,6 +52,9 @@ class DiffResult:
     # P1-T1/P1-T5: explicit scope indicators so consumers know counts are trustworthy
     is_full_count: bool = False
     rows_scanned: int = 0
+    # P5-T1: file paths for Excel summary sheet and API consumers
+    f1_path: Optional[str] = None
+    f2_path: Optional[str] = None
 
 
 def diff_files(
@@ -358,6 +361,8 @@ def diff_files(
         sample_diffs=sample_diffs,
         is_full_count=is_full_count,
         rows_scanned=rows_scanned,
+        f1_path=str(m1.path) if m1.path else None,
+        f2_path=str(m2.path) if m2.path else None,
     )
 
 

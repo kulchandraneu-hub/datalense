@@ -134,6 +134,8 @@ def render_excel_diff(diff: DiffResult, output_path: Path) -> None:
     for cell in ws_sum[1]:
         cell.font = Font(bold=True)
     for label, value in [
+        ("File 1",               getattr(diff, "f1_path", None) or "unknown"),
+        ("File 2",               getattr(diff, "f2_path", None) or "unknown"),
         ("File 1 rows",          diff.total_rows_f1),
         ("File 2 rows",          diff.total_rows_f2),
         ("Added rows",           diff.added_rows),

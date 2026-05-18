@@ -729,6 +729,8 @@ def _serialize_diff(d) -> dict:
         "confidence_score": round(d.confidence_score, 3),
         "is_full_count": d.is_full_count,
         "rows_scanned": d.rows_scanned,
+        "f1_path": getattr(d, "f1_path", None),
+        "f2_path": getattr(d, "f2_path", None),
         "key_columns": d.key_columns,
         "column_diffs": {
             name: {
