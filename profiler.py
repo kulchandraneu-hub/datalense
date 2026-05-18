@@ -50,21 +50,142 @@ def profile_file(
     cancel_token: Optional[threading.Event] = None,
 ) -> FileProfile:
     """
-    Profile all columns. One .select() pass per column to collect all null variants.
+    P3-T3: Profile all columns in ONE batched .select().collect(streaming=True) call.
+    All null variant counts, type-parse counts, distinct, min, max are computed in a
+    single expression plan. sample_values are extracted from one lf.head(100) scan.
+    profile_column() is preserved unchanged for external / standalone callers.
     """
     start = time.time()
     check_cancel(cancel_token)
 
-    total_cols = len(metadata.columns)
+    cols = metadata.columns
     row_count = metadata.row_count
+    total_cols = len(cols)
 
+    # Schema lookup: needed for temporal detection and for the Boolean cast guard below.
+    # Always assign schema so the expression-building loop can reference it safely.
+    try:
+        schema = lf.collect_schema()
+    except Exception:
+        schema = {}
+    temporal_cols = frozenset(c for c in cols if schema.get(c) in (pl.Date, pl.Datetime))
+
+    # Build one aggregation expression per statistic per column.
+    # Suffixes: __pn=polars_null, __es=empty_str, __ws=whitespace, __tn=textual_null,
+    #           __nd=n_unique, __min/__max, __date/__dt, __int/__flt/__bool (non-temporal only).
+    all_exprs: list[pl.Expr] = []
+    for c in cols:
+        is_temporal = c in temporal_cols
+        # Polars 1.x represents string columns as Utf8View internally.
+        # str(dtype) returns "String" for pl.String/pl.Utf8 in Polars 1.x, "Utf8" in older.
+        col_dtype_str = str(schema.get(c)) if schema.get(c) is not None else "String"
+        utf8 = pl.col(c).cast(pl.Utf8)
+        not_null = pl.col(c).is_not_null()
+        all_exprs += [
+            pl.col(c).is_null().sum().alias(f"{c}__pn"),
+            (pl.when(not_null)
+               .then(utf8.str.len_chars() == 0)
+               .otherwise(False).sum()).alias(f"{c}__es"),
+            (pl.when(not_null)
+               .then((utf8.str.len_chars() > 0) &
+                     (utf8.str.strip_chars().str.len_chars() == 0))
+               .otherwise(False).sum()).alias(f"{c}__ws"),
+            (pl.when(not_null)
+               .then(utf8.str.to_lowercase().is_in(list(TEXTUAL_NULLS)))
+               .otherwise(False).sum()).alias(f"{c}__tn"),
+            pl.col(c).n_unique().alias(f"{c}__nd"),
+            utf8.min().alias(f"{c}__min"),
+            utf8.max().alias(f"{c}__max"),
+            utf8.str.to_date(strict=False).is_not_null().sum().alias(f"{c}__date"),
+            utf8.str.to_datetime(strict=False).is_not_null().sum().alias(f"{c}__dt"),
+        ]
+        # Skip int/float/bool casts for temporal cols — they give days-since-epoch values.
+        if not is_temporal:
+            all_exprs += [
+                pl.col(c).cast(pl.Int64,   strict=False).is_not_null().sum().alias(f"{c}__int"),
+                pl.col(c).cast(pl.Float64, strict=False).is_not_null().sum().alias(f"{c}__flt"),
+            ]
+            # Polars 1.x does not support cast from Utf8View (String) → Boolean.
+            # For string columns bool_count defaults to 0 via row.get(..., 0), same as
+            # the original _try_cast() exception path in profile_column().
+            if col_dtype_str not in ("String", "Utf8", "Categorical", "Enum"):
+                all_exprs.append(
+                    pl.col(c).cast(pl.Boolean, strict=False).is_not_null().sum().alias(f"{c}__bool")
+                )
+
+    if progress:
+        progress.update("Profiling", "Computing batch statistics", 0, total_cols)
+
+    # Single full-file collect — streaming engine avoids materialising the entire frame.
+    # engine="streaming" is the Polars 1.25+ API; fall back to default engine on failure.
+    try:
+        batch = lf.select(all_exprs).collect(engine="streaming")
+    except Exception:
+        batch = lf.select(all_exprs).collect()
+
+    batch_row = batch.to_dicts()[0]
+
+    # One lightweight head scan for sample values across all columns.
+    try:
+        head_df = lf.head(100).collect()
+    except Exception:
+        head_df = None
+
+    check_cancel(cancel_token)
+
+    # Build ColumnProfiles from pre-computed batch values — no further .collect() calls.
     columns: list[ColumnProfile] = []
-    for i, col in enumerate(metadata.columns):
+    for i, c in enumerate(cols):
         check_cancel(cancel_token)
-        profile = profile_column(lf, col, row_count)
-        columns.append(profile)
+
+        pn   = int(batch_row.get(f"{c}__pn",   0) or 0)
+        es   = int(batch_row.get(f"{c}__es",   0) or 0)
+        ws   = int(batch_row.get(f"{c}__ws",   0) or 0)
+        tn   = int(batch_row.get(f"{c}__tn",   0) or 0)
+        nd   = int(batch_row.get(f"{c}__nd",   0) or 0)
+        mn   = batch_row.get(f"{c}__min")
+        mx   = batch_row.get(f"{c}__max")
+        int_n  = int(batch_row.get(f"{c}__int",  0) or 0)
+        flt_n  = int(batch_row.get(f"{c}__flt",  0) or 0)
+        bool_n = int(batch_row.get(f"{c}__bool", 0) or 0)
+        date_n = int(batch_row.get(f"{c}__date", 0) or 0)
+        dt_n   = int(batch_row.get(f"{c}__dt",   0) or 0)
+
+        non_null = row_count - pn
+        inferred_type, type_dist, invalid_parse = _infer_type_from_counts(
+            non_null, int_n, flt_n, bool_n, date_n, dt_n
+        )
+
+        total_null_variants = pn + es + ws + tn
+        null_variant_rate = total_null_variants / row_count if row_count > 0 else 0.0
+
+        # Sample values from single head scan (no per-column filter scan).
+        sample_values: list[str] = []
+        if head_df is not None and c in head_df.columns:
+            for v in head_df[c].cast(pl.Utf8, strict=False).to_list():
+                if v is not None and len(sample_values) < 5:
+                    sample_values.append(str(v))
+
+        columns.append(ColumnProfile(
+            name=c,
+            inferred_type=inferred_type,
+            polars_null_count=pn,
+            empty_string_count=es,
+            whitespace_only_count=ws,
+            textual_null_count=tn,
+            total_null_variants=total_null_variants,
+            null_variant_rate=null_variant_rate,
+            distinct_count=nd,
+            total_count=row_count,
+            type_distribution=type_dist,
+            invalid_parse_count=invalid_parse,
+            min_value=mn,
+            max_value=mx,
+            sample_values=sample_values,
+        ))
+
         if progress:
-            progress.update("Profiling", f"Column {i + 1}/{total_cols}: {col}", i + 1, total_cols)
+            progress.update("Profiling", f"Column {i + 1}/{total_cols}: {c}", i + 1, total_cols)
 
     return FileProfile(
         metadata=metadata,
@@ -157,6 +278,60 @@ def profile_column(
     )
 
 
+def _infer_type_from_counts(
+    non_null_count: int,
+    int_count: int,
+    float_count: int,
+    bool_count: int,
+    date_count: int,
+    datetime_count: int,
+) -> tuple[str, dict[str, float], int]:
+    """
+    Pure type-inference computation from pre-computed parse counts. No .collect() calls.
+    int/float/bool counts must already be zeroed for temporal columns by the caller.
+
+    Priority: Int64 > Float64 > Boolean > Date > Datetime > String.
+    Dominant = highest-priority type where >= 95% of non-null rows parse successfully.
+    If none qualify, uses the highest-coverage specific type so the Mixed Types
+    validation check can fire (e.g. JoinDate with mixed ISO + US date formats).
+    """
+    if non_null_count == 0:
+        return "string", {"string": 1.0}, 0
+
+    specific = {
+        "integer":  int_count,
+        "float":    float_count,
+        "boolean":  bool_count,
+        "date":     date_count,
+        "datetime": datetime_count,
+    }
+
+    THRESHOLD = 0.95
+    priority = ["integer", "float", "boolean", "date", "datetime"]
+
+    dominant = "string"
+    dominant_count = non_null_count
+    for t in priority:
+        if specific[t] / non_null_count >= THRESHOLD:
+            dominant = t
+            dominant_count = specific[t]
+            break
+
+    if dominant == "string":
+        best_t = max(priority, key=lambda k: specific[k])
+        if specific[best_t] > 0:
+            dominant = best_t
+            dominant_count = specific[best_t]
+
+    if dominant == "string":
+        return "string", {"string": 1.0}, 0
+
+    best_frac = dominant_count / non_null_count
+    type_dist = {dominant: best_frac, "string": max(0.0, 1.0 - best_frac)}
+    invalid_count = non_null_count - dominant_count
+    return dominant, type_dist, invalid_count
+
+
 def _infer_type(
     lf: pl.LazyFrame,
     col: str,
@@ -164,15 +339,9 @@ def _infer_type(
     non_null_count: int,
 ) -> tuple[str, dict[str, float], int]:
     """
-    Priority-based type inference: Int64 > Float64 > Boolean > Date > Datetime > String.
-
-    Dominant = highest-priority type where >= 95% of non-null rows parse successfully.
-    If none qualify, uses the highest-coverage specific type so the Mixed Types
-    validation check can fire (e.g. JoinDate with mixed ISO + US date formats).
-
-    Returns (dominant_type, type_distribution, invalid_parse_count).
-    - type_distribution: {dominant: fraction, "string": 1-fraction} over non-null rows.
-    - invalid_parse_count: non-null rows that do not parse as the dominant type.
+    Priority-based type inference via individual .collect() calls.
+    Signature unchanged — called by profile_column() for external / standalone use.
+    profile_file() uses _infer_type_from_counts() directly with batch-collected counts.
     """
     if non_null_count == 0:
         return "string", {"string": 1.0}, 0
@@ -215,45 +384,9 @@ def _infer_type(
     except Exception:
         datetime_count = 0
 
-    specific = {
-        "integer":  int_count,
-        "float":    float_count,
-        "boolean":  bool_count,
-        "date":     date_count,
-        "datetime": datetime_count,
-    }
-
-    THRESHOLD = 0.95
-    priority = ["integer", "float", "boolean", "date", "datetime"]
-
-    # Step 1: first type in priority order meeting the dominance threshold
-    dominant = "string"
-    dominant_count = non_null_count
-    for t in priority:
-        if specific[t] / non_null_count >= THRESHOLD:
-            dominant = t
-            dominant_count = specific[t]
-            break
-
-    # Step 2: if no type dominates, use the best specific type for Mixed Types detection.
-    # Without this, mixed-format columns (e.g. JoinDate ISO+US) would always show
-    # dominant="string" and invalid_parse_count=0, permanently suppressing the check.
-    if dominant == "string":
-        best_t = max(priority, key=lambda k: specific[k])
-        if specific[best_t] > 0:
-            dominant = best_t
-            dominant_count = specific[best_t]
-
-    # Step 3: build exclusive distribution and invalid count
-    if dominant == "string":
-        # Truly string column — no specific type parseable at all
-        return "string", {"string": 1.0}, 0
-
-    best_frac = dominant_count / non_null_count
-    type_dist = {dominant: best_frac, "string": max(0.0, 1.0 - best_frac)}
-    invalid_count = non_null_count - dominant_count
-
-    return dominant, type_dist, invalid_count
+    return _infer_type_from_counts(
+        non_null_count, int_count, float_count, bool_count, date_count, datetime_count
+    )
 
 
 if __name__ == "__main__":

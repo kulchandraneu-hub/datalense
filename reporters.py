@@ -206,8 +206,24 @@ def render_json_diff(diff: DiffResult) -> dict:
     }
 
 
-def render_csv_diff(diff: DiffResult) -> str:
-    """Return diff sample rows as CSV string."""
+def render_csv_diff(
+    diff: DiffResult,
+    diff_lf: Optional["pl.LazyFrame"] = None,
+    output_path: Optional[Path] = None,
+) -> str:
+    """Return diff sample rows as CSV string, or stream full diff to disk via sink_csv.
+
+    If diff_lf and output_path are both provided the full diff LazyFrame is written
+    directly to disk with sink_csv (no intermediate RAM allocation). The caller is
+    responsible for shaping diff_lf into the desired column layout before passing it.
+    Returns an empty string in that case — the file content is on disk at output_path.
+    If diff_lf/output_path are absent, falls back to the sample-based StringIO path.
+    """
+    if diff_lf is not None and output_path is not None:
+        import polars as _pl
+        diff_lf.sink_csv(output_path)
+        return ""
+
     import csv, io
 
     buf = io.StringIO()

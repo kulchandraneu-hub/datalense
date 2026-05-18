@@ -108,106 +108,131 @@ def diff_files(
         shared_cols = [c for c in shared_cols if c in _cmp_set]
 
     if progress:
-        progress.update("Diff", "Applying ignore rules", 0, 4)
+        progress.update("Diff", "Building combined frame", 0, 4)
 
-    # Build semantic (post-rules) frames
-    lf1_sem = _apply_ignore_rules(lf1, ignore_rules, m1.columns)
-    lf2_sem = _apply_ignore_rules(lf2, ignore_rules, m2_cols)
+    # P3-T2: Build one combined LazyFrame per file carrying BOTH semantic and raw columns.
+    # Column naming: {c}_s1/{c}_s2 = semantic (post-rules), {c}_r1/{c}_r2 = raw (Utf8 cast).
+    # One full-outer join replaces the two separate sem_joined + raw_joined scans (KI-017 fix).
+    def _sem_col_expr(c: str, rules: IgnoreRules) -> pl.Expr:
+        e = pl.col(c)
+        if rules.case or rules.whitespace:
+            e = e.cast(pl.Utf8)
+        if rules.case:
+            e = e.str.to_lowercase()
+        if rules.whitespace:
+            e = e.str.strip_chars()
+        return e
 
-    # Build raw (pre-rules, cast to string for comparison) frames
-    lf1_raw = _cast_to_str(lf1, m1.columns)
-    lf2_raw = _cast_to_str(lf2, m2_cols)
+    f1_select: list[pl.Expr] = (
+        [pl.col(k) for k in key_columns]
+        + [pl.lit(1).alias("_in_f1")]
+        + [_sem_col_expr(c, ignore_rules).alias(f"{c}_s1") for c in shared_cols]
+        + [pl.col(c).cast(pl.Utf8).alias(f"{c}_r1") for c in shared_cols]
+    )
+    f2_select: list[pl.Expr] = (
+        [pl.col(k) for k in key_columns]
+        + [pl.lit(1).alias("_in_f2")]
+        + [_sem_col_expr(c, ignore_rules).alias(f"{c}_s2") for c in shared_cols]
+        + [pl.col(c).cast(pl.Utf8).alias(f"{c}_r2") for c in shared_cols]
+    )
 
-    # P1-T2: Sentinel columns added before join to track row origin unambiguously.
-    # After full-outer join: _in_f1 IS NULL → row absent from file 1 (added to f2).
-    #                        _in_f2 IS NULL → row absent from file 2 (removed from f1).
-    # Sentinels are NOT in m1/m2.columns so the rename step below leaves them intact.
-    lf1_sem = lf1_sem.with_columns(pl.lit(1).alias("_in_f1"))
-    lf2_sem = lf2_sem.with_columns(pl.lit(1).alias("_in_f2"))
-    lf1_raw = lf1_raw.with_columns(pl.lit(1).alias("_in_f1"))
-    lf2_raw = lf2_raw.with_columns(pl.lit(1).alias("_in_f2"))
+    lf1 = lf1.sort(key_columns)
+    lf2 = lf2.sort(key_columns)
+    combined_lf1 = lf1.select(f1_select)
+    combined_lf2 = lf2.select(f2_select)
 
     check_cancel(cancel_token)
 
     if progress:
-        progress.update("Diff", "Joining files", 1, 4)
+        progress.update("Diff", "Joining files (single pass)", 1, 4)
 
-    # Rename non-key data columns to avoid collision after join.
-    # Sentinel columns (_in_f1/_in_f2) are not in m1/m2.columns → not renamed.
-    def _rename(lf: pl.LazyFrame, cols: list[str], suffix: str) -> pl.LazyFrame:
-        return lf.rename({c: f"{c}{suffix}" for c in cols if c not in key_columns})
-
-    lf1_sem_r = _rename(lf1_sem, m1.columns, "_f1")
-    lf2_sem_r = _rename(lf2_sem, m2_cols, "_f2")
-    lf1_raw_r = _rename(lf1_raw, m1.columns, "_raw1")
-    lf2_raw_r = _rename(lf2_raw, m2_cols, "_raw2")
-
-    # Semantic join (full outer)
-    sem_joined = lf1_sem_r.join(lf2_sem_r, on=key_columns, how="full", coalesce=True)
-
-    # Raw join (full outer) — same key structure
-    raw_joined = lf1_raw_r.join(lf2_raw_r, on=key_columns, how="full", coalesce=True)
+    # Single full-outer join carries both semantic and raw columns simultaneously.
+    combined_joined = combined_lf1.join(combined_lf2, on=key_columns, how="full", coalesce=True)
 
     check_cancel(cancel_token)
 
     if progress:
         progress.update("Diff", "Computing full-file counts", 2, 4)
 
-    # P1-T1: Full-file counts via Polars expressions over the complete join result.
+    # P3-T2: Single collect on combined_joined for all global counts + per-column stats.
+    # Classifies all 5 row types (added/removed/modified/formatting_only/unchanged) in one pass.
+    # Two separate joins (sem_joined + raw_joined) are replaced by this one expression plan.
     try:
-        # Detect any semantic difference across shared columns.
-        # Uses is_null() mismatch to catch null-vs-value transitions correctly.
+        both_present = pl.col("_in_f1").is_not_null() & pl.col("_in_f2").is_not_null()
+
         if shared_cols:
             any_sem_diff = pl.any_horizontal([
-                (pl.col(f"{c}_f1") != pl.col(f"{c}_f2")) |
-                (pl.col(f"{c}_f1").is_null() != pl.col(f"{c}_f2").is_null())
+                (pl.col(f"{c}_s1") != pl.col(f"{c}_s2")) |
+                (pl.col(f"{c}_s1").is_null() != pl.col(f"{c}_s2").is_null())
+                for c in shared_cols
+            ])
+            any_raw_diff = pl.any_horizontal([
+                (pl.col(f"{c}_r1") != pl.col(f"{c}_r2")) |
+                (pl.col(f"{c}_r1").is_null() != pl.col(f"{c}_r2").is_null())
                 for c in shared_cols
             ])
         else:
             any_sem_diff = pl.lit(False)
+            any_raw_diff = pl.lit(False)
 
-        # Classify every join row using sentinel presence, then semantic diff.
+        # Full classification per COMPARE_ENGINE_RULES.md §2:
+        #   added / removed (sentinel) → modified (sem diff) → formatting_only (raw diff, no sem diff) → unchanged
         change_type_expr = (
             pl.when(pl.col("_in_f1").is_null()).then(pl.lit("added"))
             .when(pl.col("_in_f2").is_null()).then(pl.lit("removed"))
             .when(any_sem_diff).then(pl.lit("modified"))
-            .otherwise(pl.lit("same_or_fmt"))
+            .when(any_raw_diff).then(pl.lit("formatting_only"))
+            .otherwise(pl.lit("unchanged"))
             .alias("_change_type")
         )
 
-        counts_df = (
-            sem_joined
+        # Aggregate global counts + exact per-column sem/raw diff counts in one collect.
+        agg_exprs: list = [
+            pl.len().alias("__total"),
+            pl.col("_change_type").eq("added").sum().alias("__added"),
+            pl.col("_change_type").eq("removed").sum().alias("__removed"),
+            pl.col("_change_type").eq("modified").sum().alias("__modified"),
+            pl.col("_change_type").eq("formatting_only").sum().alias("__fmt_only"),
+        ]
+        for c in shared_cols:
+            col_sem_diff_expr = (
+                (pl.col(f"{c}_s1") != pl.col(f"{c}_s2")) |
+                (pl.col(f"{c}_s1").is_null() != pl.col(f"{c}_s2").is_null())
+            ) & both_present
+            col_raw_diff_expr = (
+                (pl.col(f"{c}_r1") != pl.col(f"{c}_r2")) |
+                (pl.col(f"{c}_r1").is_null() != pl.col(f"{c}_r2").is_null())
+            ) & both_present
+            agg_exprs.extend([
+                col_sem_diff_expr.sum().alias(f"{c}__sem"),
+                col_raw_diff_expr.sum().alias(f"{c}__raw"),
+                (pl.col(f"{c}_s1").is_null() & pl.col(f"{c}_s2").is_not_null() & both_present)
+                    .sum().alias(f"{c}__null_res"),
+                (pl.col(f"{c}_s1").is_not_null() & pl.col(f"{c}_s2").is_null() & both_present)
+                    .sum().alias(f"{c}__null_in"),
+            ])
+
+        stats = (
+            combined_joined
             .with_columns(change_type_expr)
-            .group_by("_change_type")
-            .agg(pl.len().alias("n"))
+            .select(agg_exprs)
             .collect()
         )
 
-        counts = dict(zip(counts_df["_change_type"].to_list(), counts_df["n"].to_list()))
-        added = counts.get("added", 0)
-        removed = counts.get("removed", 0)
-        modified = counts.get("modified", 0)
-        rows_scanned = sum(counts.values())
+        added = int(stats["__added"][0])
+        removed = int(stats["__removed"][0])
+        modified = int(stats["__modified"][0])
+        fmt_only = int(stats["__fmt_only"][0])
+        rows_scanned = int(stats["__total"][0])
 
-        # formatting_only: both files have the row, raw values differ, semantic values don't.
-        # = (rows with any raw diff, both present) - (rows with any semantic diff, both present)
-        if shared_cols:
-            any_raw_diff = pl.any_horizontal([
-                (pl.col(f"{c}_raw1") != pl.col(f"{c}_raw2")) |
-                (pl.col(f"{c}_raw1").is_null() != pl.col(f"{c}_raw2").is_null())
-                for c in shared_cols
-            ])
-            raw_both_diff = (
-                raw_joined
-                .filter(pl.col("_in_f1").is_not_null() & pl.col("_in_f2").is_not_null())
-                .filter(any_raw_diff)
-                .select(pl.len())
-                .collect()
-                .item()
-            )
-            fmt_only = max(0, raw_both_diff - modified)
-        else:
-            fmt_only = 0
+        col_modified: dict[str, int] = {c: int(stats[f"{c}__sem"][0]) for c in shared_cols}
+        col_null_res: dict[str, int] = {c: int(stats[f"{c}__null_res"][0]) for c in shared_cols}
+        col_null_in: dict[str, int] = {c: int(stats[f"{c}__null_in"][0]) for c in shared_cols}
+        # col_fmt[c] = raw_diff[c] − sem_diff[c]: exact because sem diff ⊆ raw diff
+        col_fmt: dict[str, int] = {
+            c: max(0, int(stats[f"{c}__raw"][0]) - col_modified.get(c, 0))
+            for c in shared_cols
+        }
 
         is_full_count = True
 
@@ -225,37 +250,28 @@ def diff_files(
     if progress:
         progress.update("Diff", "Building sample diffs", 3, 4)
 
-    # --- Collect display sample (head 1000 from join; at most 200 RowDiff objects) ---
-    # These rows are for UI display only. All counts above come from the full-file pass.
+    # --- Collect display sample (head 1000 from combined join; ≤200 RowDiff objects) ---
+    # These rows are for UI display only. All counts come from the full-file pass above.
     try:
-        sem_sample = sem_joined.head(1000).collect().to_dicts()
-        raw_sample = raw_joined.head(1000).collect().to_dicts()
+        combined_sample = combined_joined.head(1000).collect().to_dicts()
     except Exception:
-        sem_sample = []
-        raw_sample = []
+        combined_sample = []
 
     check_cancel(cancel_token)
 
-    # Build a lookup from key → raw row for the sample
     def _key_str(row: dict, keys: list[str]) -> str:
         return "|".join(str(row.get(k, "")) for k in keys)
 
-    raw_by_key = {_key_str(r, key_columns): r for r in raw_sample}
-
-    # Per-column stats are collected from the sample (Phase 3 will extend to full file).
-    col_modified: dict[str, int] = {c: 0 for c in shared_cols}
-    col_fmt: dict[str, int] = {c: 0 for c in shared_cols}
-    col_null_in: dict[str, int] = {c: 0 for c in shared_cols}
-    col_null_res: dict[str, int] = {c: 0 for c in shared_cols}
+    # col_modified, col_fmt, col_null_in, col_null_res are set by the Polars full-file pass.
+    # The Python loop below builds sample_diffs only (no count accumulation).
     sample_diffs: list[RowDiff] = []
 
-    for sem_row in sem_sample:
-        key_str = _key_str(sem_row, key_columns)
-        raw_row = raw_by_key.get(key_str, {})
+    for row in combined_sample:
+        key_str = _key_str(row, key_columns)
 
-        # P1-T2: Use sentinel columns — not value heuristics — to detect row origin.
-        is_added = sem_row.get("_in_f1") is None
-        is_removed = sem_row.get("_in_f2") is None
+        # Sentinel columns determine row origin (P1-T2 rule preserved in combined frame).
+        is_added = row.get("_in_f1") is None
+        is_removed = row.get("_in_f2") is None
 
         if is_removed:
             change_type: Literal["added", "removed", "modified", "formatting_only"] = "removed"
@@ -274,24 +290,18 @@ def diff_files(
             f2_vals = {}
 
             for c in shared_cols:
-                v1_sem = sem_row.get(f"{c}_f1")
-                v2_sem = sem_row.get(f"{c}_f2")
-                v1_raw = raw_row.get(f"{c}_raw1")
-                v2_raw = raw_row.get(f"{c}_raw2")
+                v1_sem = row.get(f"{c}_s1")
+                v2_sem = row.get(f"{c}_s2")
+                v1_raw = row.get(f"{c}_r1")
+                v2_raw = row.get(f"{c}_r2")
 
                 sem_diff = (v1_sem != v2_sem) and not (v1_sem is None and v2_sem is None)
                 raw_diff = (v1_raw != v2_raw) and not (v1_raw is None and v2_raw is None)
 
                 if sem_diff:
                     changed_sem.append(c)
-                    col_modified[c] = col_modified.get(c, 0) + 1
-                    if v1_sem is None and v2_sem is not None:
-                        col_null_res[c] = col_null_res.get(c, 0) + 1
-                    elif v1_sem is not None and v2_sem is None:
-                        col_null_in[c] = col_null_in.get(c, 0) + 1
                 elif raw_diff:
                     changed_raw.append(c)
-                    col_fmt[c] = col_fmt.get(c, 0) + 1
 
                 f1_vals[c] = str(v1_raw) if v1_raw is not None else ""
                 f2_vals[c] = str(v2_raw) if v2_raw is not None else ""
