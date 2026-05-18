@@ -114,21 +114,49 @@ def render_excel_diff(diff: DiffResult, output_path: Path) -> None:
     try:
         import openpyxl
         from openpyxl.styles import PatternFill, Font
+        from openpyxl.utils import get_column_letter
     except ImportError:
         raise RuntimeError("openpyxl is required for Excel export: pip install openpyxl")
 
+    from datetime import datetime
+
+    def _auto_width(ws_target) -> None:
+        for i, col_cells in enumerate(ws_target.columns, 1):
+            max_len = max((len(str(cell.value or "")) for cell in col_cells), default=0)
+            ws_target.column_dimensions[get_column_letter(i)].width = min(max_len + 2, 50)
+
     wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Diff"
+
+    # --- Summary sheet (tab index 0 — first tab in Excel) ---
+    ws_sum = wb.active
+    ws_sum.title = "Summary"
+    ws_sum.append(["Field", "Value"])
+    for cell in ws_sum[1]:
+        cell.font = Font(bold=True)
+    for label, value in [
+        ("File 1 rows",          diff.total_rows_f1),
+        ("File 2 rows",          diff.total_rows_f2),
+        ("Added rows",           diff.added_rows),
+        ("Removed rows",         diff.removed_rows),
+        ("Modified rows",        diff.modified_rows),
+        ("Formatting-only rows", diff.formatting_only_rows),
+        ("Compare date/time",    datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        ("Key columns",          ", ".join(diff.key_columns)),
+    ]:
+        ws_sum.append([label, value])
+    _auto_width(ws_sum)
+
+    # --- Diff sheet (tab index 1; set as active so tests using .active find it) ---
+    ws = wb.create_sheet("Diff")
+    wb._active_sheet_index = 1  # keep Summary first but make Diff the active sheet
 
     row_fills = {
-        "added":           PatternFill("solid", fgColor="166534"),
-        "removed":         PatternFill("solid", fgColor="7F1D1D"),
-        "modified":        PatternFill("solid", fgColor="78350F"),
-        "formatting_only": PatternFill("solid", fgColor="1F2937"),
+        "added":           PatternFill("solid", fgColor="D4EDDA"),
+        "removed":         PatternFill("solid", fgColor="F8D7DA"),
+        "modified":        PatternFill("solid", fgColor="FFF3CD"),
+        "formatting_only": PatternFill("solid", fgColor="F8F9FA"),
     }
-    # Brighter amber overlay on the _after cell for each changed column in a modified row
-    changed_cell_fill = PatternFill("solid", fgColor="B45309")
+    changed_cell_fill = PatternFill("solid", fgColor="F59E0B")
 
     data_cols = list(diff.column_diffs.keys())
     key_count = len(diff.key_columns)
@@ -141,6 +169,9 @@ def render_excel_diff(diff: DiffResult, output_path: Path) -> None:
     ws.append(header)
     for cell in ws[1]:
         cell.font = Font(bold=True)
+
+    # Freeze header row so column names stay visible when scrolling
+    ws.freeze_panes = "A2"
 
     # 0-based index of each column's _after cell in the row tuple.
     # Layout: 0..key_count-1 = keys, key_count = change_type,
@@ -166,6 +197,8 @@ def render_excel_diff(diff: DiffResult, output_path: Path) -> None:
                 after_i = col_after_idx.get(col)
                 if after_i is not None:
                     excel_row[after_i].fill = changed_cell_fill
+
+    _auto_width(ws)
 
     wb.save(output_path)
 
