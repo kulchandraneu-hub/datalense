@@ -987,6 +987,8 @@ const S = {
   allResults: {},      // slot -> result, for multi-file runs
   activeCandidate: 'f2', // candidate slot used for column mapping panel
   activeSlot: null,    // candidate slot whose result is currently displayed
+  diffViewSbs: true,   // true = side-by-side (default), false = inline
+  _lastDiff: null,     // saved for view-toggle rebuild
 };
 let histRuns = [];
 
@@ -1105,6 +1107,7 @@ function _applyTblFilters(tableId) {
 
 // ── Init Tabulator tables for the Diff tab
 function initDiffTabulators(diff) {
+  S._lastDiff = diff;
   if (document.getElementById('tbl-cdiff')) {
     const colData = Object.entries(diff.column_diffs || {}).map(([name, s]) => ({
       name,
@@ -1125,8 +1128,19 @@ function initDiffTabulators(diff) {
     ], {initialSort:[{column:'modified', dir:'desc'}]});
   }
   if (document.getElementById('tbl-sdiff')) {
-    const typeMap   = {added:'b-add', removed:'b-rem', modified:'b-mod', formatting_only:'b-fmt'};
-    const rowClsMap = {added:'row-add', removed:'row-rem', modified:'row-mod', formatting_only:'row-fmt'};
+    _buildSampleDiffTabulator(diff);
+  }
+}
+
+// ── Build (or rebuild) the Sample Row Diffs tabulator.
+//    Called by initDiffTabulators and by toggleDiffView.
+function _buildSampleDiffTabulator(diff) {
+  if (!document.getElementById('tbl-sdiff')) return;
+  const typeMap   = {added:'b-add', removed:'b-rem', modified:'b-mod', formatting_only:'b-fmt'};
+  const rowClsMap = {added:'row-add', removed:'row-rem', modified:'row-mod', formatting_only:'row-fmt'};
+
+  if (!S.diffViewSbs) {
+    // ── Inline view (original behaviour) ──────────────────────────────────
     const smpData = (diff.sample_diffs || []).map(row => {
       let changes = '';
       if (row.change_type === 'modified' && row.columns_changed?.length) {
@@ -1160,7 +1174,132 @@ function initDiffTabulators(diff) {
         if (rc) row.getElement().classList.add(rc);
       }
     });
+
+  } else {
+    // ── Side-by-side view ─────────────────────────────────────────────────
+    // Collect unique changed column names in order of first appearance
+    const allChangedCols = [];
+    const _seenCols = new Set();
+    for (const row of (diff.sample_diffs || [])) {
+      for (const c of (row.columns_changed || [])) {
+        if (!_seenCols.has(c)) { _seenCols.add(c); allChangedCols.push(c); }
+      }
+    }
+
+    // Build row data. State is stored in _changedSet (excluded from TSV by _ prefix).
+    // Before/after values use bef_*/aft_* fields (included in TSV).
+    const smpData = (diff.sample_diffs || []).map(row => {
+      const ct = row.change_type;
+      const changedSet = new Set(row.columns_changed || []);
+      const searchText = `${row.key} ${ct} ${(row.columns_changed || []).join(' ')}`;
+      const obj = {key: row.key, change_type: ct, _searchText: searchText, _changedSet: changedSet};
+      for (const col of allChangedCols) {
+        if (ct === 'added' || ct === 'removed') {
+          // f1/f2 values not populated for added/removed (known gap — Phase 4 P1-T4 note)
+          obj[`bef_${col}`] = null;
+          obj[`aft_${col}`] = null;
+        } else {
+          obj[`bef_${col}`] = row.f1?.[col] ?? null;
+          obj[`aft_${col}`] = row.f2?.[col] ?? null;
+        }
+      }
+      return obj;
+    });
+
+    // Fixed columns
+    const colDefs = [
+      {
+        title: `Key (${(diff.key_columns||[]).join(', ')})`,
+        field: 'key', resizable:true, minWidth:140, frozen:true, headerFilter:'input'
+      },
+      {
+        title: 'Type', field: 'change_type', resizable:true, minWidth:110, width:120, frozen:true,
+        formatter(cell) {
+          const v = cell.getValue();
+          return `<span class="badge ${typeMap[v]||''}">${v.replace('_',' ')}</span>`;
+        }
+      },
+    ];
+
+    // Per-column before + after pairs.
+    // Closure captures `col` correctly: for...of creates a fresh binding per iteration.
+    for (const col of allChangedCols) {
+      colDefs.push({
+        title: `${col} (before)`,
+        field: `bef_${col}`,
+        resizable: true, minWidth: 110,
+        formatter(cell) {
+          const data = cell.getRow().getData();
+          const ct   = data.change_type;
+          const isChanged = data._changedSet?.has(col);
+          const el = cell.getElement();
+          if (ct === 'modified' && isChanged) {
+            el.style.setProperty('background', 'rgba(239,68,68,.22)', 'important');
+          } else if (ct === 'formatting_only' && isChanged) {
+            el.style.setProperty('background', 'rgba(148,163,184,.1)', 'important');
+          } else {
+            el.style.removeProperty('background');
+          }
+          const v = cell.getValue();
+          if (v === null || v === undefined || v === '') {
+            return `<span style="color:var(--mut);opacity:.35">—</span>`;
+          }
+          return esc(String(v));
+        }
+      });
+      colDefs.push({
+        title: `${col} (after)`,
+        field: `aft_${col}`,
+        resizable: true, minWidth: 110,
+        formatter(cell) {
+          const data = cell.getRow().getData();
+          const ct   = data.change_type;
+          const isChanged = data._changedSet?.has(col);
+          const el = cell.getElement();
+          if (ct === 'modified' && isChanged) {
+            el.style.setProperty('background', 'rgba(34,197,94,.22)', 'important');
+          } else if (ct === 'formatting_only' && isChanged) {
+            el.style.setProperty('background', 'rgba(148,163,184,.1)', 'important');
+          } else {
+            el.style.removeProperty('background');
+          }
+          const v = cell.getValue();
+          if (v === null || v === undefined || v === '') {
+            return `<span style="color:var(--mut);opacity:.35">—</span>`;
+          }
+          if (ct === 'formatting_only' && isChanged) {
+            return `${esc(String(v))}<span class="badge b-fmt" style="font-size:9px;padding:0 4px;margin-left:5px;vertical-align:middle">fmt</span>`;
+          }
+          return esc(String(v));
+        }
+      });
+    }
+
+    mkTabulator('tbl-sdiff', smpData, colDefs, {
+      rowFormatter(row) {
+        const rc = rowClsMap[row.getData().change_type] || '';
+        if (rc) row.getElement().classList.add(rc);
+      }
+    });
   }
+
+  // Re-apply any type / text filter active before the rebuild
+  _applyTblFilters('tbl-sdiff');
+}
+
+// ── Toggle between side-by-side and inline diff views
+function toggleDiffView() {
+  S.diffViewSbs = !S.diffViewSbs;
+  const btn = ge('btn-diff-view');
+  if (btn) {
+    btn.textContent = S.diffViewSbs ? '☰ Inline view' : '⊞ Side-by-side';
+    btn.classList.toggle('active', !S.diffViewSbs);
+  }
+  // Destroy the current sdiff table and rebuild with the new view mode
+  if (TBLS['tbl-sdiff']) { try { TBLS['tbl-sdiff'].destroy(); } catch {} delete TBLS['tbl-sdiff']; }
+  const el = ge('tbl-sdiff');
+  if (el) el.innerHTML = '';
+  if (S._lastDiff) _buildSampleDiffTabulator(S._lastDiff);
 }
 
 // ── Init Tabulator tables for the Profile tab
@@ -1918,6 +2057,7 @@ function buildDiffTab(diff) {
       <button class="pill p-mod"  data-pg="dt" onclick="setDiffTypeFilter('modified',this)">Modified</button>
       <button class="pill p-fmt"  data-pg="dt" onclick="setDiffTypeFilter('formatting_only',this)" title="Rows with raw string differences but identical semantic values (e.g. 50000 vs 50000.0, or whitespace/case changes)">Fmt-only</button>
     </div>
+    <button class="btn-sm" id="btn-diff-view" onclick="toggleDiffView()" title="Switch between side-by-side columns and inline changes view">☰ Inline view</button>
     <input class="itbl-search" placeholder="🔍 Filter rows…" oninput="filterTable('tbl-sdiff',this.value)" title="Search key, type, and changes">
     <button class="btn-wrap" data-wrap="tbl-sdiff" onclick="toggleWrap('tbl-sdiff')">⏎ Wrap OFF</button>
     <button class="btn-copy-tsv" data-copy="tbl-sdiff" onclick="copyTSV('tbl-sdiff')">⎘ Copy TSV</button>
