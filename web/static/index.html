@@ -567,6 +567,24 @@ td.vr-del-cell{width:28px;text-align:center}
 /* Win-2: Column exclude checkboxes */
 .cm-tag-chk{accent-color:var(--blu);cursor:pointer;margin-right:3px;vertical-align:middle;width:11px;height:11px;flex-shrink:0}
 .cm-tag.excluded{opacity:.38;text-decoration:line-through}
+
+/* ── Ignore Rules collapsible panel ── */
+.ir-hd{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;padding:4px 0}
+.ir-hd:hover .ir-title,.ir-hd:hover .ir-summary,.ir-hd:hover .ir-arr{color:var(--txt)}
+.ir-title{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);white-space:nowrap}
+.ir-summary{font-size:11px;color:var(--mut);flex:1}
+.ir-summary.active{color:var(--blu)}
+.ir-arr{font-size:10px;color:var(--mut);transition:transform .15s;flex-shrink:0}
+.ir-arr.open{transform:rotate(90deg)}
+.ir-body{display:none;margin-top:8px;padding:10px 12px;background:var(--bg);border:1px solid var(--bdr)}
+.ir-body.open{display:block}
+.ir-checks{display:flex;flex-direction:column;gap:7px}
+.ir-date-sub{margin-top:5px;margin-left:20px;display:flex;align-items:center;gap:8px}
+.ir-date-sub .lbl{margin:0;white-space:nowrap}
+.ir-date-sub input{width:160px}
+.ir-reset{font-size:10px;color:var(--mut);cursor:pointer;text-decoration:underline;opacity:.6;
+  margin-top:10px;display:inline-block;background:none;border:none;font-family:var(--font);padding:0}
+.ir-reset:hover{opacity:1;color:var(--txt)}
 </style>
 </head>
 <body>
@@ -704,18 +722,6 @@ td.vr-del-cell{width:28px;text-align:center}
 
     <!-- Options bar -->
     <div class="opts-bar" id="compare-opts">
-      <div class="opts-checks">
-        <label class="opts-lbl">
-          <input type="checkbox" id="ign-case" onchange="renderComparePlan()">
-          Uppercase = lowercase
-          <i class="opt-tip" data-tip="'SMITH' and 'Smith' will be treated as the same value">?</i>
-        </label>
-        <label class="opts-lbl">
-          <input type="checkbox" id="ign-ws" onchange="renderComparePlan()">
-          Ignore extra spaces
-          <i class="opt-tip" data-tip="Spaces at the start or end of a value are ignored (' John ' = 'John')">?</i>
-        </label>
-      </div>
       <button class="btn-primary" id="run-btn" onclick="startRun()" disabled>
         <span id="run-lbl">▶ Compare Files</span>
       </button>
@@ -728,6 +734,46 @@ td.vr-del-cell{width:28px;text-align:center}
         <button class="btn-sm" onclick="toggleColMapPanel()" id="cm-toggle-btn">Hide</button>
       </div>
       <div class="cm-groups" id="cm-groups"></div>
+    </div>
+
+    <!-- Ignore Rules Panel — Compare tab only, collapsed by default -->
+    <div id="ignore-rules-panel" style="margin-top:12px;border-top:1px solid var(--bdr);padding-top:10px">
+      <div class="ir-hd" onclick="toggleIgnoreRulesPanel()">
+        <span class="ir-title">Ignore Rules</span>
+        <span id="ir-summary" class="ir-summary">No ignore rules</span>
+        <span id="ir-arr" class="ir-arr">▶</span>
+      </div>
+      <div id="ir-body" class="ir-body">
+        <div class="ir-checks">
+          <label class="opts-lbl">
+            <input type="checkbox" id="ign-case" onchange="onIgnoreRuleChange()">
+            Ignore case differences
+            <i class="opt-tip" data-tip="'SMITH' and 'Smith' are treated as equal">?</i>
+          </label>
+          <label class="opts-lbl">
+            <input type="checkbox" id="ign-ws" onchange="onIgnoreRuleChange()">
+            Ignore leading/trailing whitespace
+            <i class="opt-tip" data-tip="' John ' and 'John' are treated as equal">?</i>
+          </label>
+          <label class="opts-lbl">
+            <input type="checkbox" id="ign-nvb" onchange="onIgnoreRuleChange()">
+            Treat null and blank as equivalent
+            <i class="opt-tip" data-tip="NULL and empty string '' are treated as equal (no diff reported)">?</i>
+          </label>
+          <div>
+            <label class="opts-lbl">
+              <input type="checkbox" id="ign-date" onchange="onIgnoreRuleChange()">
+              Normalize date formats
+              <i class="opt-tip" data-tip="Dates in different formats (e.g. 2024-01-15 vs 01/15/2024) are treated as equal">?</i>
+            </label>
+            <div id="ir-date-fmt-wrap" class="ir-date-sub" style="display:none">
+              <span class="lbl">Expected format</span>
+              <input type="text" id="ign-date-fmt" placeholder="%Y-%m-%d" oninput="onIgnoreRuleChange()">
+            </div>
+          </div>
+        </div>
+        <button class="ir-reset" onclick="resetIgnoreRules()">Reset to defaults</button>
+      </div>
     </div>
 
     <!-- Compare Plan (Win-1) — shown in Compare tab when both files are loaded -->
@@ -1373,6 +1419,9 @@ function switchTab(tab) {
   const colMapPanel = ge('col-map-panel');
   if (colMapPanel) colMapPanel.style.display = (!isVset && S.colMapVisible) ? '' : 'none';
 
+  const irPanel = ge('ignore-rules-panel');
+  if (irPanel) irPanel.style.display = isCompare ? '' : 'none';
+
   ge('val-rules-panel').style.display = isValidate ? '' : 'none';
   ge('run-btn').style.display = isVset ? 'none' : '';
 
@@ -1795,7 +1844,7 @@ async function _startNextRun() {
         key_columns_f1: keyColsF1, key_columns_f2: keyColsF2,
         column_map: colMap.length ? colMap : null,
         compare_columns: compareColumns,
-        ignore_case: ge('ign-case').checked, ignore_whitespace: ge('ign-ws').checked,
+        ignore_rules: getIgnoreRules(),
       });
     } else {
       const vrCfg = vrBuildConfig();
@@ -1873,7 +1922,7 @@ function lockInputs(lock) {
       const el = ge(`${pfx}-${s}`); if(el) el.disabled = lock;
     });
   });
-  ['ign-case','ign-ws'].forEach(id=>{ const el=ge(id); if(el) el.disabled=lock; });
+  ['ign-case','ign-ws','ign-nvb','ign-date','ign-date-fmt'].forEach(id=>{ const el=ge(id); if(el) el.disabled=lock; });
   ge('run-btn').disabled = lock;
 }
 
@@ -2516,6 +2565,52 @@ function getCompareColumns() {
   return [...new Set(allComparable.filter(c => !excluded.has(c)))];
 }
 
+// ─────────────────────────────────── Ignore Rules panel
+function toggleIgnoreRulesPanel() {
+  const body = ge('ir-body');
+  const arr  = ge('ir-arr');
+  if (!body) return;
+  const open = body.classList.toggle('open');
+  if (arr) arr.classList.toggle('open', open);
+}
+
+function onIgnoreRuleChange() {
+  const dateOn = ge('ign-date')?.checked;
+  const fmtWrap = ge('ir-date-fmt-wrap');
+  if (fmtWrap) fmtWrap.style.display = dateOn ? '' : 'none';
+  if (!dateOn) { const f = ge('ign-date-fmt'); if (f) f.value = ''; }
+  updateIgnoreRulesSummary();
+  renderComparePlan();
+}
+
+function updateIgnoreRulesSummary() {
+  const el = ge('ir-summary');
+  if (!el) return;
+  const count = ['ign-case','ign-ws','ign-nvb','ign-date'].filter(id => ge(id)?.checked).length;
+  el.textContent = count === 0 ? 'No ignore rules' : `${count} rule${count > 1 ? 's' : ''} active`;
+  el.classList.toggle('active', count > 0);
+}
+
+function resetIgnoreRules() {
+  ['ign-case','ign-ws','ign-nvb','ign-date'].forEach(id => { const el = ge(id); if (el) el.checked = false; });
+  const fmt = ge('ign-date-fmt'); if (fmt) fmt.value = '';
+  const fmtWrap = ge('ir-date-fmt-wrap'); if (fmtWrap) fmtWrap.style.display = 'none';
+  updateIgnoreRulesSummary();
+  renderComparePlan();
+}
+
+function getIgnoreRules() {
+  const rules = {
+    ignore_case:          !!(ge('ign-case')?.checked),
+    ignore_whitespace:    !!(ge('ign-ws')?.checked),
+    ignore_null_vs_blank: !!(ge('ign-nvb')?.checked),
+    normalize_dates:      !!(ge('ign-date')?.checked),
+  };
+  const dateFmt = (ge('ign-date-fmt')?.value || '').trim();
+  if (rules.normalize_dates && dateFmt) rules.date_format = dateFmt;
+  return rules;
+}
+
 // ── Win-1: render the Compare Plan summary card
 function renderComparePlan() {
   const p = ge('compare-plan');
@@ -2553,7 +2648,9 @@ function renderComparePlan() {
   // Ignore rules line
   const ignParts = [];
   if (ge('ign-case')?.checked)  ignParts.push('case-insensitive');
-  if (ge('ign-ws')?.checked)    ignParts.push('ignore leading/trailing spaces');
+  if (ge('ign-ws')?.checked)    ignParts.push('trim whitespace');
+  if (ge('ign-nvb')?.checked)   ignParts.push('null = blank');
+  if (ge('ign-date')?.checked)  ignParts.push('normalize dates');
   const ignoreStr = ignParts.length ? ignParts.join(', ') : '<span style="color:var(--mut)">none</span>';
 
   const body = ge('compare-plan-body');

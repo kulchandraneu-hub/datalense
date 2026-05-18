@@ -112,8 +112,11 @@ class CompareAPIRequest(BaseModel):
     key_columns_f2: Optional[list[str]] = None
     column_map: Optional[list[dict]] = None
     compare_columns: Optional[list[str]] = None
+    # Legacy flat fields (kept for backward-compatibility)
     ignore_case: bool = False
     ignore_whitespace: bool = False
+    # Richer ignore-rules dict from the UI panel (overrides legacy fields when present)
+    ignore_rules: Optional[dict] = None
     output_dir: Optional[str] = None
 
 
@@ -546,13 +549,27 @@ def _run_compare_job(job_id: str, req: CompareAPIRequest) -> None:
                 if k1 != k2:
                     col_map.append({"f1": k1, "f2": k2})
 
+        # Build IgnoreRules: prefer the richer ignore_rules dict from the UI panel;
+        # fall back to legacy ignore_case / ignore_whitespace flat fields for
+        # backward-compatibility with API clients that don't send the dict.
+        if req.ignore_rules:
+            ir = req.ignore_rules
+            effective_rules = IgnoreRules(
+                case=bool(ir.get('ignore_case', req.ignore_case)),
+                whitespace=bool(ir.get('ignore_whitespace', req.ignore_whitespace)),
+                null_vs_blank=bool(ir.get('ignore_null_vs_blank', False)),
+                date_format=bool(ir.get('normalize_dates', False)),
+            )
+        else:
+            effective_rules = IgnoreRules(case=req.ignore_case, whitespace=req.ignore_whitespace)
+
         core_req = CoreCompareRequest(
             file1=Path(req.file1),
             file2=Path(req.file2),
             sheet1=req.sheet1,
             sheet2=req.sheet2,
             key_columns=eff_key,
-            ignore_rules=IgnoreRules(case=req.ignore_case, whitespace=req.ignore_whitespace),
+            ignore_rules=effective_rules,
             output_dir=out_dir,
             column_map=col_map or None,
             compare_columns=req.compare_columns or None,
