@@ -19,3 +19,7 @@ Test file: benchmark_500k (500k rows, 22 cols)
 ## Phase 4 — UI and Excel Support
 No performance-sensitive changes.
 Test count: 101 (was 97 entering Phase 4, +20 Excel loader tests in P4-T1, remaining tasks frontend-only).
+
+## Phase 5 — Premium Features
+No performance-sensitive changes in P5-T1 through P5-T4.
+Test count: 117 (was 101 entering Phase 5, +16 new export tests in P5-T2).

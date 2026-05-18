@@ -1,6 +1,6 @@
 # Implementation Roadmap — DataLens
 
-_Created: 2026-05-14. Last updated: 2026-05-18 (Phase 4 — UI and Excel support complete; 101/101 tests pass)._
+_Created: 2026-05-14. Last updated: 2026-05-18 (Phase 5 — Premium features in progress; 117/117 tests pass)._
 
 ---
 
@@ -156,9 +156,8 @@ Also fixed KI-014: `compare.py` smoke test now asserts `is_full_count is True`.
 - **Fix applied:** Both LazyFrames sorted by key columns before the join (enables merge-join over hash-join at 5GB scale). Export uses Polars streaming sink rather than loading full diff CSV into RAM.
 - **Benchmark:** 2.1s → 2.4s (within noise at 500k; benefit realises at 5GB scale).
 
-### P3-T5: Full diff export (not just sample) `[ ]`
-- Implement streaming export of full diff result to CSV/JSON using Polars sink or batched write.
-- Populate `DiffResult.export_path`.
+### P3-T5: Full diff export (not just sample) `[x]`
+- Superseded by P5-T2. See Phase 5 for implementation details.
 
 ---
 
@@ -187,6 +186,35 @@ Also fixed KI-014: `compare.py` smoke test now asserts `is_full_count is True`.
 ### P4-T5: Validation pass/fail distinction `[x]`
 - **Completed:** 2026-05-18
 - Per-file scoped toggle (default OFF = failures only). Passed checks get ✓ + 0.6 opacity. Failed checks get ✗ + severity color. Toggle resets on each new result load.
+
+---
+
+## Phase 5 — Premium Features
+
+**Goal:** Full diff export, ignore rules, preview mode, and packaging for non-technical users.
+**Prerequisite:** Phase 4 complete.
+**Status: In progress — P5-T1 through P5-T4 complete; 117/117 tests pass.**
+
+### P5-T1: File paths in DiffResult + Excel summary filenames `[x]`
+- **Completed:** 2026-05-18
+- `f1_path` and `f2_path` added to `DiffResult` as `Optional[str] = None`. Populated from `FileMetadata` in `diff_files()`. Serialized in `api.py` with `getattr` fallback for backward compatibility. Excel Summary sheet now shows both filenames.
+
+### P5-T2: Full diff export via streaming sink `[x]`
+- **Completed:** 2026-05-18
+- `diff_lf` LazyFrame added to `DiffResult` — filtered to changed rows only, never collected. `compare.py` uses `sink_csv` for full export. `api.py /api/export` uses `diff_lf` with fallback to sample for Excel inputs (temp paths already deleted by export time). Previously only 200-row sample was exported. No RAM overhead for large files.
+
+### P5-T3: Ignore rules UI wired to engine `[x]`
+- **Completed:** 2026-05-18
+- Collapsible panel in Compare tab with 4 controls: case, whitespace, null-vs-blank, date normalize. Panel summary shows active rule count. `getIgnoreRules()` sends `ignore_rules` dict to API. `api.py` converts dict to `IgnoreRules` dataclass. Backward compatible with legacy flat fields.
+
+### P5-T4: Sample-first preview mode `[x]`
+- **Completed:** 2026-05-18
+- Preview checkbox truncates both files to 100k rows via `.head()` before compare. Yellow banner shown on results. `(sample)` suffix added to metric counts. Run Full Compare button re-runs without preview. `preview_mode=False` is fully backward compatible.
+
+### P5-T5: Windows packaging / installer `[ ]`
+- `run_datalense.bat` + `run_datalense.sh` launcher scripts.
+- `docs/INSTALL.md` for non-technical users.
+- One-click setup for users without Python knowledge.
 
 ---
 

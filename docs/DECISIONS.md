@@ -271,6 +271,44 @@ _Format: date, decision, rationale, alternatives considered._
 
 ---
 
+### D-P5-T1 — f1_path/f2_path added to DiffResult
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (P5-T1, 2026-05-18)
+- **Decision:** Add `f1_path: Optional[str] = None` and `f2_path: Optional[str] = None` to `DiffResult`. Populated from `FileMetadata` in `diff_files()`. Serialized in `api.py` with `getattr` fallback. Excel Summary sheet now shows both filenames.
+- **Rationale:** The P4-T4 Excel Summary sheet was left with a known gap (no filenames) because `DiffResult` did not carry file paths. Adding optional fields is backward compatible — callers that don't set them get `None` and the API serializer silently omits or null-fills them.
+- **Alternatives considered:** Pass paths as separate arguments to `render_excel_diff()` — rejected because it would scatter path tracking across callers instead of keeping it in the result object.
+
+---
+
+### D-P5-T2 — Full diff export via streaming sink; diff_lf LazyFrame in DiffResult
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (P5-T2, 2026-05-18)
+- **Decision:** Add `diff_lf: Optional[pl.LazyFrame] = None` to `DiffResult`. `diff_lf` is filtered to changed rows only and never collected. `compare.py` passes it to `render_csv_diff()` which uses `sink_csv` for streaming write. `api.py /api/export` uses `diff_lf` when available; falls back to sample for Excel inputs (temp CSV paths are deleted before export time).
+- **Rationale:** Previously only 200 sample rows were exported. For 5GB production files the full diff may be millions of rows — collecting into RAM before writing is not viable. Streaming sink writes directly to disk without any `.collect()`.
+- **Invariant preserved:** INV-7 (export files written eagerly to disk). INV-1 (no `.collect()` on `diff_lf` path).
+- **Alternatives considered:** Buffer in chunks: more complex and still requires intermediate RAM. Yield rows via generator: not compatible with Polars LazyFrame API.
+
+---
+
+### D-P5-T3 — Ignore rules UI wired end-to-end to IgnoreRules dataclass
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (P5-T3, 2026-05-18)
+- **Decision:** Collapsible panel in Compare tab with 4 controls: case, whitespace, null-vs-blank, date normalize. `getIgnoreRules()` in frontend sends an `ignore_rules` dict to the API. `api.py` converts the dict to an `IgnoreRules` dataclass before passing to `diff_files()`. Backward compatible with legacy flat fields (if `ignore_rules` key is absent, fall back to flat fields).
+- **Rationale:** Ignore rules were previously engine-only with no UI path. Users comparing files with case differences or whitespace variations had no way to suppress those from the diff without code changes.
+- **Alternatives considered:** Separate API endpoint for rules — rejected; single compare endpoint with embedded rules is simpler and stateless.
+
+---
+
+### D-P5-T4 — Sample-first preview mode via .head() truncation
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (P5-T4, 2026-05-18)
+- **Decision:** A Preview checkbox truncates both files to 100k rows using `.head()` before the compare pipeline runs. Results show a yellow banner and `(sample)` suffix on metric counts. A Run Full Compare button re-runs without truncation. `preview_mode=False` is the default and fully backward compatible.
+- **Rationale:** Running a full compare on two 5GB files takes minutes. Users need a fast feedback loop to verify their column mapping and ignore rules before committing to a full run. 100k rows is large enough to catch configuration errors but fast enough to feel interactive.
+- **Invariant preserved:** INV-6 — sample-based counts set `is_full_count=False` automatically via existing key-degradation and count logic.
+- **Alternatives considered:** Percentage-based sampling (random 20%) — non-deterministic, harder to explain to users. Row limit configurable by user — adds UI complexity without clear benefit.
+
+---
+
 ## Invariants (never violate these)
 
 These are non-negotiable constraints carried forward from the original architecture:
