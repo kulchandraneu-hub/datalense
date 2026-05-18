@@ -1,0 +1,7 @@
+polars
+pydantic
+charset-normalizer
+openpyxl
+fastapi
+uvicorn[standard]
+python-multipart
