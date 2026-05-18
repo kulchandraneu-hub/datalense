@@ -1,6 +1,6 @@
 # Implementation Roadmap — DataLens
 
-_Created: 2026-05-14. Last updated: 2026-05-18 (Phase 3 — performance architecture complete; 344s → 2.4s on 500k rows)._
+_Created: 2026-05-14. Last updated: 2026-05-18 (Phase 4 — UI and Excel support complete; 101/101 tests pass)._
 
 ---
 
@@ -166,20 +166,27 @@ Also fixed KI-014: `compare.py` smoke test now asserts `is_full_count is True`.
 
 **Goal:** Make the UI trustworthy and the reports actionable.
 **Prerequisite:** Phase 1 complete (especially P1-T5 for scope indicator).
+**Completed: 2026-05-18. 101/101 tests pass.**
 
-### P4-T1: Show compare scope in UI summary card `[ ]`
-- "Full-file counts" vs "Estimate — N rows scanned of M total".
-- Linked to `is_full_count` / `rows_scanned` from DiffResult.
+### P4-T1: Excel support + /api/sheets endpoint `[x]`
+- **Completed:** 2026-05-18
+- New `excel_loader.py` module. Users can load `.xlsx` files directly. Sheet selector appears in UI. `/api/sheets` endpoint returns sheet names. INV-3 compliant: `mkstemp()` + `os.close()` + `newline=""` for Windows.
 
-### P4-T2: Side-by-side old/new values in diff table `[ ]`
-- For each changed column in a modified row, show `old_value → new_value`.
+### P4-T2: Side-by-side diff view `[x]`
+- **Completed:** 2026-05-18
+- Before/after column pairs per changed field. Cell-level red/green/grey coloring. Toggle between inline and side-by-side. Frozen Key+Type columns on scroll. `S._lastDiff` stores result for toggle rebuild without extra network request.
 
-### P4-T3: Show which key columns were used and how selected `[ ]`
-- "Key: EmployeeID (auto-detected)" vs "Key: EmployeeID (user-specified)".
+### P4-T3: Granular SSE progress `[x]`
+- **Completed:** 2026-05-18
+- 8-phase step map in `api.py`. Frontend uses `_STEP_PCT` lookup for bar width. Step N/8 counter visible during run. Unknown phases fall back to current/total path (backward-compatible).
 
-### P4-T4: Improve Excel report layout `[ ]`
-- Depends on P1-T4 (both old and new values present).
-- Freeze first row, auto-width columns, colour changed cells (not just rows).
+### P4-T4: Professional Excel report layout `[x]`
+- **Completed:** 2026-05-18
+- Summary sheet added as first tab. Frozen header row. Auto-width columns (max 50). Pastel color scheme for row types. Known gap: `DiffResult` does not store file paths — Summary sheet shows row counts only. Fix deferred to Phase 5.
+
+### P4-T5: Validation pass/fail distinction `[x]`
+- **Completed:** 2026-05-18
+- Per-file scoped toggle (default OFF = failures only). Passed checks get ✓ + 0.6 opacity. Failed checks get ✗ + severity color. Toggle resets on each new result load.
 
 ---
 

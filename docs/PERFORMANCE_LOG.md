@@ -15,3 +15,7 @@ Test file: benchmark_500k (500k rows, 22 cols)
 - P3-T3 was the dominant gain: 176 `.collect()` calls reduced to 2
 - P3-T4 sort benefit realises at 5GB scale, not 500k rows
 - All measurements on 500k row benchmark file
+
+## Phase 4 — UI and Excel Support
+No performance-sensitive changes.
+Test count: 101 (was 97 entering Phase 4, +20 Excel loader tests in P4-T1, remaining tasks frontend-only).

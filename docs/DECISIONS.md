@@ -228,6 +228,49 @@ _Format: date, decision, rationale, alternatives considered._
 
 ---
 
+### D-P4-T1 — `excel_loader.py` created as public API for Excel support
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (P4-T1, 2026-05-18)
+- **Decision:** New `excel_loader.py` module provides `load_excel_sheet()` and `list_sheets()`. `compare.py` already had internal `_excel_to_temp_csv` — new module adds testability and the `/api/sheets` endpoint without duplicating engine logic.
+- **Rationale:** Isolating Excel handling into its own module enables unit tests for sheet listing and conversion independently of the compare flow. INV-3 compliant: `mkstemp()` + `os.close()` + `newline=""` for Windows handle safety.
+- **Alternatives considered:** Expanding `compare.py` internal function — rejected as untestable and would violate module ownership (compare.py is orchestration only).
+
+---
+
+### D-P4-T2 — Side-by-side diff view in UI
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (P4-T2, 2026-05-18)
+- **Decision:** Diff table shows before/after column pairs per changed field. Cell-level coloring (not row-level). Toggle preserves inline view. Frozen Key+Type columns for wide tables. `S._lastDiff` stores the last result so toggle rebuilds the view without an extra network request.
+- **Rationale:** Row-level coloring alone doesn't show which values changed; cell-level coloring makes change review faster for wide files with many columns.
+- **Alternatives considered:** Separate "before" and "after" tabs — rejected as harder to visually compare than paired columns.
+
+---
+
+### D-P4-T3 — SSE progress made deterministic via 8-phase step map
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (P4-T3, 2026-05-18)
+- **Decision:** 8-phase step map in `api.py`. Frontend uses `_STEP_PCT` lookup for bar width. Unknown phases fall back to current/total path (backward-compatible).
+- **Rationale:** The indeterminate bar gave users no signal of which phase was the bottleneck. Deterministic % per named phase makes progress predictable and debuggable.
+
+---
+
+### D-P4-T4 — Excel report upgraded with summary sheet and professional layout
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (P4-T4, 2026-05-18)
+- **Decision:** Summary sheet added as first tab. Frozen header, auto-width columns (max 50 chars). Pastel row colors replace dark fills.
+- **Rationale:** Dark fills are hard to read when printed; pastel is print-friendly. Summary sheet gives stakeholders a quick overview without opening the diff tab.
+- **Known gap:** `DiffResult` does not store file paths — Summary sheet shows row counts only. Fix deferred to Phase 5 (add optional `f1_path`/`f2_path` fields to `DiffResult`).
+
+---
+
+### D-P4-T5 — Validation tab pass/fail distinction with per-file toggle
+- **Date:** 2026-05-18
+- **Status:** IMPLEMENTED (P4-T5, 2026-05-18)
+- **Decision:** Per-file scoped toggle (default OFF = failures only). Passed checks get ✓ prefix + 0.6 opacity de-emphasis. Failed checks get ✗ prefix + severity color. Toggle resets on each new result load.
+- **Rationale:** Analysts reviewing validation output need to see failures immediately without scanning through all passing checks. Default-off for passing checks reduces noise while toggle allows full audit when needed.
+
+---
+
 ## Invariants (never violate these)
 
 These are non-negotiable constraints carried forward from the original architecture:

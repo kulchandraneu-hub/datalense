@@ -1,6 +1,6 @@
 # Known Issues — DataLens
 
-_Last updated: 2026-05-16 (Phase 2.6 — KI-019 fixed; compare_columns filter + Compare Plan card implemented)_
+_Last updated: 2026-05-18 (Phase 4 complete — KI-020, UX-007 fixed)_
 _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 
 ---
@@ -159,12 +159,10 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 - **Fix applied:** `exportCSV()` rewritten as `async` function using `fetch` + `Blob` download. Button is disabled and shows "⏳ Exporting…" while the request is in-flight. Restored to original text on completion or error. Filename extracted from `Content-Disposition` header with fallback to `diff.csv`. Export errors are surfaced via the error banner.
 
 ### KI-020 — SSE progress bar shows no per-phase percentage breakdown
-- **Status:** Unfixed
+- **Status:** FIXED (P4-T3, 2026-05-18)
 - **Severity:** LOW
-- **File:** `web/static/index.html` (SSE handler), `web/api.py` (progress events)
-- **Impact:** The progress bar is indeterminate for most of the run. Users cannot tell which phase (Profiling, Diffing, etc.) is the bottleneck.
-- **Fix:** Map each phase name to an approximate percentage range and advance the bar deterministically. The phase names are already emitted in the SSE stream (`Loading`, `Schema`, `Profiling`, `Key Discovery`, `Key Validation`, `Diffing`, `Validation`, `Exporting`).
-- **Fix target:** Phase 4.
+- **File:** `web/api.py`, `web/static/index.html`
+- **Fix applied:** 8-phase step map in `api.py`. Frontend `_STEP_PCT` lookup advances bar deterministically per phase. Step N/8 counter visible during run. Green checkmark on completion. Unknown phases fall back to current/total path (backward-compatible).
 
 ### KI-021 — `is_full_count=False` shown as "ESTIMATE" badge but no detail on which counts are affected
 - **Status:** PARTIAL FIX (2026-05-15) — badge added; no drill-down detail
@@ -193,6 +191,12 @@ _Severity: CRITICAL > HIGH > MEDIUM > LOW_
 - **File:** `differ.py` (sample loop)
 - **Severity:** MEDIUM
 - **Fix applied:** Fixed Phase 3 (P3-T1). Python sample loop replaced with Polars full-file expression plan. `sem_agg_exprs` + `raw_agg_exprs` computed in a single `.select().collect()` pass over the full joined LazyFrame. Per-column counts are now exact for all file sizes. Benchmark: 344s → 93.9s at this step.
+
+### UX-007 — Validation checks show pass/fail identically
+- **Status:** FIXED (P4-T5, 2026-05-18)
+- **Severity:** LOW
+- **File:** `web/static/index.html`
+- **Fix applied:** Per-file scoped toggle (default OFF = failures only). Passed checks get ✓ prefix + 0.6 opacity. Failed checks get ✗ prefix + severity color. Toggle resets on each new result load.
 
 ---
 
