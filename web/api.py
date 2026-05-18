@@ -36,6 +36,7 @@ from compare import run_compare, CompareRequest as CoreCompareRequest, CompareRe
 from validator import validate_two_files, ValidationConfig, ColumnRuleConfig, ValidationReport
 from metadata import load_metadata
 from differ import IgnoreRules
+from reporters import render_csv_diff
 from utils import check_memory_guard, fmt_bytes, CancelledError, Progress
 from web.history import HistoryManager
 
@@ -559,8 +560,18 @@ def _run_compare_job(job_id: str, req: CompareAPIRequest) -> None:
 
         result = run_compare(core_req, progress=progress, cancel_token=job.cancel_token)
 
-        if result.csv_diff_path:
+        # P5-T2: prefer the full-diff CSV written by _write_reports (streaming sink via
+        # diff_lf). If output_dir was not set or the file is missing, fall back to
+        # generating from diff_lf directly (CSV inputs only — Excel temp paths are gone).
+        if result.csv_diff_path and result.csv_diff_path.exists():
             _last_csv_path = result.csv_diff_path
+        elif result.diff.diff_lf is not None:
+            try:
+                _fb_path = EXPORTS_DIR / f"diff_{job_id}.csv"
+                render_csv_diff(result.diff, result.diff.diff_lf, _fb_path)
+                _last_csv_path = _fb_path
+            except Exception:
+                pass  # diff_lf may reference deleted temp paths (Excel inputs)
 
         serialized = _serialize_compare_result(result)
         job.result = serialized

@@ -55,6 +55,8 @@ class DiffResult:
     # P5-T1: file paths for Excel summary sheet and API consumers
     f1_path: Optional[str] = None
     f2_path: Optional[str] = None
+    # P5-T2: full diff as LazyFrame for streaming CSV export (do NOT .collect())
+    diff_lf: Optional[pl.LazyFrame] = None
 
 
 def diff_files(
@@ -157,6 +159,8 @@ def diff_files(
     if progress:
         progress.update("Diff", "Computing full-file counts", 2, 4)
 
+    diff_lf: Optional[pl.LazyFrame] = None
+
     # P3-T2: Single collect on combined_joined for all global counts + per-column stats.
     # Classifies all 5 row types (added/removed/modified/formatting_only/unchanged) in one pass.
     # Two separate joins (sem_joined + raw_joined) are replaced by this one expression plan.
@@ -238,6 +242,22 @@ def diff_files(
         }
 
         is_full_count = True
+
+        # P5-T2: build diff_lf as a LazyFrame of changed rows only — do NOT .collect().
+        # Shape: key cols + _change_type + {c}_f1/{c}_f2 (raw values) per shared col.
+        # render_csv_diff() calls sink_csv() on this; no RAM allocation for full file.
+        _dlf_select = (
+            [pl.col(k) for k in key_columns]
+            + [pl.col("_change_type")]
+            + [pl.col(f"{c}_r1").alias(f"{c}_f1") for c in shared_cols]
+            + [pl.col(f"{c}_r2").alias(f"{c}_f2") for c in shared_cols]
+        )
+        diff_lf = (
+            combined_joined
+            .with_columns(change_type_expr)
+            .filter(pl.col("_change_type") != "unchanged")
+            .select(_dlf_select)
+        )
 
     except Exception:
         # Graceful degradation — e.g., duplicate key causes Cartesian product / OOM
@@ -363,6 +383,7 @@ def diff_files(
         rows_scanned=rows_scanned,
         f1_path=str(m1.path) if m1.path else None,
         f2_path=str(m2.path) if m2.path else None,
+        diff_lf=diff_lf,
     )
 
 

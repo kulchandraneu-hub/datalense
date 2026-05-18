@@ -223,9 +223,12 @@ def _write_reports(result: CompareResult, output_dir: Path, progress: Optional[P
     json_path.write_text(json.dumps(json_data, indent=2), encoding="utf-8")
     result.json_diff_path = json_path
 
-    csv_content = render_csv_diff(result.diff)
+    # P5-T2: use streaming sink when diff_lf is available (full export, no RAM load).
+    # Falls back to sample string when diff_lf is None (graceful-degradation path).
     csv_path = unique_output_path(output_dir / "diff", ".csv")
-    csv_path.write_text(csv_content, encoding="utf-8")
+    csv_content = render_csv_diff(result.diff, result.diff.diff_lf, csv_path)
+    if csv_content:  # diff_lf unavailable — write sample string returned by fallback
+        csv_path.write_text(csv_content, encoding="utf-8")
     result.csv_diff_path = csv_path
 
 
