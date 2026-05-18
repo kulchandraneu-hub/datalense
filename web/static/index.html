@@ -203,6 +203,9 @@ button{cursor:pointer;font-family:var(--font)}
 .chk-item{padding:5px 10px 5px 18px;border-bottom:1px solid rgba(51,65,85,.3);font-size:11px}
 .chk-msg{color:var(--txt)}
 .chk-meta{color:var(--mut);font-size:10px;margin-top:1px}
+.chk-show-pass{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mut);margin-bottom:8px;cursor:pointer;user-select:none}
+.chk-show-pass:hover{color:var(--txt)}
+.chk-show-pass input{accent-color:var(--blu);cursor:pointer}
 
 /* ── Profile ── */
 .sec-head{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);
@@ -2099,9 +2102,24 @@ function buildDiffTab(diff) {
 // ─────────────────────────────────── Validation tab
 function buildValidationTab(r1, r2) {
   let h='';
-  if (r1) { h+='<div class="sec-head">Reference File</div>'+buildChecks(r1.checks||[]); }
-  if (r2) { h+='<div class="sec-head mt8">Candidate File</div>'+buildChecks(r2.checks||[]); }
+  if (r1) { h+='<div class="sec-head">Reference File</div>'+_checksSection(r1.checks||[], 'chk-s1'); }
+  if (r2) { h+='<div class="sec-head mt8">Candidate File</div>'+_checksSection(r2.checks||[], 'chk-s2'); }
   return h||'<div class="no-data">No validation data.</div>';
+}
+
+function _checksSection(checks, sid) {
+  if (!checks.length) return '<div class="no-data">No checks.</div>';
+  const hasPass = checks.some(c => c.passed === true);
+  const toggle = hasPass
+    ? `<label class="chk-show-pass"><input type="checkbox" onchange="applyPassFilter('${sid}',this.checked)"> Show passing checks</label>`
+    : '';
+  return toggle + `<div id="${sid}">${buildChecks(checks)}</div>`;
+}
+
+function applyPassFilter(sid, show) {
+  const scope = ge(sid);
+  if (!scope) return;
+  scope.querySelectorAll('.chk-pass').forEach(el => { el.style.display = show ? '' : 'none'; });
 }
 
 function buildChecks(checks) {
@@ -2109,9 +2127,11 @@ function buildChecks(checks) {
   const order=['CRITICAL','ERROR','WARNING','INFO'];
   const grps={CRITICAL:[],ERROR:[],WARNING:[],INFO:[]};
   for (const c of checks) (grps[c.severity]||grps.INFO).push(c);
+  const sevColor={CRITICAL:'var(--pur)',ERROR:'var(--red)',WARNING:'var(--yel)',INFO:'var(--blu)'};
   return order.filter(s=>grps[s].length).map(sev=>{
     const items=grps[sev];
     const scls=sev.toLowerCase();
+    const color=sevColor[sev];
     return `<div class="sev-sec">
       <div class="sev-hd sev-${scls}" onclick="toggleSev(this)">
         <span class="sev-arr">▶</span>
@@ -2120,7 +2140,12 @@ function buildChecks(checks) {
       </div>
       <div class="sev-body">${items.map(c=>{
         const meta=[c.column?`col: ${c.column}`:'', c.affected_count!=null?`${c.affected_count.toLocaleString()} rows`:''].filter(Boolean).join(' · ');
-        return `<div class="chk-item"><div class="chk-msg">${esc(c.name)}: ${esc(c.message)}</div>
+        const pfx = c.passed
+          ? `<span style="color:var(--mut);margin-right:4px">✓</span>`
+          : `<span style="color:${color};margin-right:4px">✗</span>`;
+        const passCls = c.passed ? ' chk-pass' : '';
+        const passStyle = c.passed ? 'display:none;opacity:.6;' : '';
+        return `<div class="chk-item${passCls}" style="${passStyle}"><div class="chk-msg">${pfx}${esc(c.name)}: ${esc(c.message)}</div>
           ${meta?`<div class="chk-meta">${esc(meta)}</div>`:''}</div>`;
       }).join('')}</div></div>`;
   }).join('');
